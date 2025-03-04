@@ -6,27 +6,30 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
-app.use(express.static("public")); // Serve static frontend files
+const PORT = process.env.PORT;
 
-let messages = []; // Store messages here
+app.use(express.static("public"));
+
+let messages = []; // Store messages
 
 io.on("connection", (socket) => {
-    console.log("A user connected");
+    console.log("A user connected:", socket.id);
 
-    // Send stored messages to the new user
+    // Send chat history to the newly connected user
     socket.emit("chat history", messages);
 
-    // When a new message is received
-    socket.on("chat message", (msg) => {
-        messages.push(msg); // Save message in array
-        io.emit("chat message", msg); // Send message to all users
+    // Handle message sending
+    socket.on("chat message", ({ userID, message }) => {
+        const messageData = { userID, text: message };
+        messages.push(messageData); // Save message in history
+        io.emit("chat message", messageData); // Send to all users
     });
 
     socket.on("disconnect", () => {
-        console.log("A user disconnected");
+        console.log("User disconnected:", socket.id);
     });
 });
 
-server.listen(3000, () => {
-    console.log("Server running on http://localhost:3000");
+server.listen(PORT, () => {
+    console.log(`Server running on http://localhost:${PORT}`);
 });
