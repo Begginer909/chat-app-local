@@ -3,6 +3,7 @@ const messageInput = document.getElementById("messageInput");
 const messages = document.getElementById("messages");
 
 let lastUserID = null;
+let userId = null
 
 socket.on("connect", () => {
     userId = socket.id; 
@@ -22,7 +23,7 @@ socket.on("chat message", (msg) => {
 function sendMessage() {
     const message = messageInput.value.trim();
     if (message) {
-        const messageData = { userID: userId, message };
+        const messageData = { id: userId, message };
         socket.emit("chat message", messageData); // Send message to server
         messageInput.value = ""; // Clear input
     }
@@ -33,9 +34,9 @@ function displayMessage(msg) {
     messageWrapper.classList.add("message-wrapper");
 
     // Only show the name if it's a different user from the last message
-    if (msg.userID !== lastUserID) {
+    if (msg.id !== lastUserID) {
         const nameElement = document.createElement("p");
-        nameElement.textContent = msg.userID === userId ? "You" : msg.userID; 
+        nameElement.textContent = msg.id === userId ? "You" : msg.id; 
         nameElement.classList.add("message-name");
         messageWrapper.appendChild(nameElement);
     }
@@ -45,7 +46,7 @@ function displayMessage(msg) {
     messageElement.classList.add("message-box");
 
     // Check if the message was sent by the current user
-    if (msg.userID === userId) {
+    if (msg.id === userId) {
         messageWrapper.classList.add("my-message"); // Align right
     } else {
         messageWrapper.classList.add("other-message"); // Align left
@@ -56,7 +57,7 @@ function displayMessage(msg) {
     messages.appendChild(messageWrapper);
 
     // Update last user ID
-    lastUserID = msg.userID;
+    lastUserID = msg.id;
 
     // Auto-scroll to the latest message
     messages.scrollTop = messages.scrollHeight;

@@ -1,3 +1,16 @@
+@media (min-width: 647px){
+    .chat-container{
+        border: 1px solid black;
+        font-family: Arial, Helvetica, sans-serif;
+    }
+}
+
+@media (max-width: 646){
+    .chat-container{
+        font-family: 'Roboto', sans-serif;
+    }
+}
+
 body {
     font-family: Arial, sans-serif;
     display: flex;
@@ -8,7 +21,7 @@ body {
 }
 
 .chat-container {
-    width: 300px;
+    width: 600px;
     background: white;
     padding: 20px;
     border-radius: 8px;
@@ -16,7 +29,7 @@ body {
 }
 
 #messages {
-    height: 200px;
+    height: 400px;
     overflow-y: auto;
     border-bottom: 1px solid #ccc;
     margin-bottom: 10px;

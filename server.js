@@ -19,8 +19,8 @@ io.on("connection", (socket) => {
     socket.emit("chat history", messages);
 
     // Handle message sending
-    socket.on("chat message", ({ userID, message }) => {
-        const messageData = { userID, text: message };
+    socket.on("chat message", ({ id, message }) => {
+        const messageData = { id, text: message };
         messages.push(messageData); // Save message in history
         io.emit("chat message", messageData); // Send to all users
     });
