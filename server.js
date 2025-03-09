@@ -1,30 +1,79 @@
-const express = require("express");
-const http = require("http");
-const { Server } = require("socket.io");
+import express from 'express';
+import http from 'http';
+import { Server } from 'socket.io';
+import dotenv from "dotenv";
+import db from './config.js';
+import bodyParser from 'body-parser';
+import authRoutes from './auth.js';
+import cors from 'cors';
+import cookie from 'cookie-parser';
 
-require('dotenv').config();
+dotenv.config();
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server);
+
+
+const io = new Server(server,{
+    cors:{
+        origin: "http://localhost",
+        method: ['GET', 'POST', 'PUT', 'DELETE'],
+        credentials: true
+    }
+});
 
 const PORT = process.env.PORT;
 
-app.use(express.static("public"));
+app.use(cors({
+    origin: "http://localhost",
+    method: ['GET', 'POST', 'PUT', 'DELETE'],
+    credentials: true
+}));
 
-let messages = []; // Store messages
+app.use(bodyParser.json());
+app.use(cookie());
+
+app.use('/auth', authRoutes);
 
 io.on("connection", (socket) => {
     console.log("A user connected:", socket.id);
 
-    // Send chat history to the newly connected user
-    socket.emit("chat history", messages);
+    const chatHistory = `SELECT
+                            m.senderID, m.message, u.username
+                        FROM messages m JOIN users u 
+                        ON m.senderID = u.userID 
+                        ORDER BY m.messageID ASC`;
 
-    // Handle message sending
-    socket.on("chat message", ({ id, message }) => {
-        const messageData = { id, text: message };
-        messages.push(messageData); // Save message in history
-        io.emit("chat message", messageData); // Send to all users
+    db.query(chatHistory, (err, results) => {
+        if(err){
+            console.error("Error fetching chat history", err)
+        } else{
+            socket.emit("chat history", results);
+        }
+    });
+
+    socket.on('sendmessage', ({senderID, message }) => {
+        db.query('SELECT username FROM users WHERE userID = ?', [senderID], (err, results) => {
+            if (err) {
+                console.error("Database error:", err);
+                return;
+            }
+    
+            if (results.length === 0) {
+                console.error("User not found");
+                return;
+            }
+    
+            const username = results[0].username;
+
+            db.query('INSERT INTO messages (senderID, message) VALUES (?, ?)', [senderID, message], (err, result) => {
+                if (!err) {
+                    io.emit('newMessage', { senderID, username, message });
+                } else {
+                    console.error("Error inserting message:", err);
+                }
+            });
+        });
     });
 
     socket.on("disconnect", () => {
