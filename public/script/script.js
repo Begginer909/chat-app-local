@@ -27,6 +27,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 function setupChat(data) {
     userId = data.userID; 
 
+    socket.emit("requestChatHistory");
+
     // Load chat history
     socket.on("chat history", (history) => {
         lastSenderId = null; // Reset before loading history

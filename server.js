@@ -47,12 +47,14 @@ io.on("connection", (socket) => {
                         ON m.senderID = u.userID 
                         ORDER BY m.messageID ASC`;
 
-    db.query(chatHistory, (err, results) => {
-        if(err){
-            console.error("Error fetching chat history", err)
-        } else{
-            socket.emit("chat history", results);
-        }
+    socket.on("requestChatHistory", () => {
+        db.query(chatHistory, (err, results) => {
+            if(err){
+                console.error("Error fetching chat history", err)
+            } else{
+                socket.emit("chat history", results);
+            }
+        });
     });
 
     socket.on('sendmessage', ({senderID, message }) => {
