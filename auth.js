@@ -8,19 +8,43 @@ const router = express.Router();
 
 //Register 
 router.post('/register', async (req, res) => {
-    const { firstname, lastname, username, password } = req.body;
-    const hashed_password = await bcrypt.hash(password, 10);
-    
-    db.query('INSERT INTO users (username, firstname, lastname, password) VALUES (?, ?, ?, ?)',
-        [username, firstname, lastname, hashed_password], (err, result) => {
-            if (err) return res.status(500).json({ error: err.message });
+    try{
+        const { firstname, lastname, username, password } = req.body;
 
-            res.json({ 
-                message: 'Registration successful',  
-                redirectURL: 'index.html'  // Send the redirect path
-            });
+        if (!firstname || !lastname || !username || !password) {
+            return res.status(400).json({ message: "All fields are required" });
         }
-    );
+
+        // Check if the username already exists
+        db.query('SELECT * FROM users WHERE username = ?', [username], async (err, results) => {
+            if (err) {
+                return res.status(500).json({ message: "Database error" });
+            }
+            if (results.length > 0) {
+                return res.status(409).json({ message: "Username already exists" });
+            }
+
+            // If username is unique, proceed with hashing and inserting
+            const hashed_password = await bcrypt.hash(password, 10);
+
+            db.query(
+                'INSERT INTO users (username, firstname, lastname, password) VALUES (?, ?, ?, ?)',
+                [username, firstname, lastname, hashed_password],
+                (err, result) => {
+                    if (err) {
+                        return res.status(500).json({ message: "Database error" });
+                    }
+
+                    res.json({
+                        message: "Registration successful",
+                        redirectURL: "index.html"
+                    });
+                }
+            );
+        });
+    } catch(err){
+        res.status(500).json({ message: "Username already exists" });
+    }
 });
 
 // Login
@@ -32,7 +56,7 @@ router.post('/login', (req, res) => {
 
         const user = results[0];
         const isValidPassword = await bcrypt.compare(password, user.password);
-        if (!isValidPassword) return res.status(401).json({ message: 'Invalid password' });
+        if (!isValidPassword) return res.status(401).json({ message: 'Username or Password is invalid' });
 
         const payload = {
             userID: user.userID,
@@ -57,23 +81,6 @@ router.post('/login', (req, res) => {
 
     });
 });
-
-router.get('/protected', (req, res) => {
-    const token = req.cookies.authToken;
-
-    if(!token){
-        return res.status(401).json({message: "Unauthorized"});
-    }
-
-    try{
-        const secretkey = process.env.SECRET_KEY;
-        const decoded = jwt.verify(token, secretkey);
-        res.json({ message: "Access granded", user:decoded});
-    } catch(err){
-        res.status(401).json({message: "Invalid token"});
-    }
-});
-
 
 export default router;
 

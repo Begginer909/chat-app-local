@@ -5,8 +5,10 @@ import dotenv from "dotenv";
 import db from './config.js';
 import bodyParser from 'body-parser';
 import authRoutes from './auth.js';
+import cookieRoutes from './cookie.js';
 import cors from 'cors';
 import cookie from 'cookie-parser';
+
 
 dotenv.config();
 
@@ -34,6 +36,7 @@ app.use(bodyParser.json());
 app.use(cookie());
 
 app.use('/auth', authRoutes);
+app.use('/cookie', cookieRoutes);
 
 io.on("connection", (socket) => {
     console.log("A user connected:", socket.id);

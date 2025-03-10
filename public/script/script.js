@@ -6,7 +6,7 @@ let lastSenderId = null;
 
 document.addEventListener('DOMContentLoaded', async () => {
     try {
-        const response = await fetch("http://localhost:3000/auth/protected", {
+        const response = await fetch("http://localhost:3000/cookie/protected", {
             method: "GET", 
             credentials: "include"
         });

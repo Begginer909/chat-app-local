@@ -18,13 +18,14 @@ document.getElementById("regform").addEventListener("submit", async(event) => {
             })
         })
 
-        const data = response.json();
+        const data = await response.json();
 
         if(response.ok){
-            window.href.location = data.redirectURL;
+            window.location.href = data.redirectURL;
         } else{
             alert(data.message);
         }
+        
     } catch(err){
         console.log("Registration Failed: ", err);
         alert("Something went wrong");
