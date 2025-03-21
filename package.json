@@ -4,7 +4,7 @@
   "main": "server.js",
   "type": "module",
   "scripts": {
-    "dev": "nodemon --env-file=.env server.js",
+    "dev": "nodemon --env-file=.env server/server.js",
     "start": "node server.js"
   },
   "keywords": [],
@@ -18,7 +18,9 @@
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "jsonwebtoken": "^9.0.2",
+    "multer": "^1.4.5-lts.1",
     "mysql2": "^3.13.0",
+    "path": "^0.12.7",
     "socket.io": "^4.8.1"
   },
   "devDependencies": {
