@@ -31,29 +31,29 @@ function setupChat(data) {
 	socket.emit('requestChatHistory');
 
 	// Receive new messages
-	socket.on('newMessage', ({ senderID, receiverID, username, message, messageType, fileUrl, chatType }) => {
-		if (chatType === 'private') {
+	socket.on('newMessage', ({ senderID, receiverID, username, message, messageType, fileUrl, groupID, chatType }) => {
+		if (chatType === 'private' && receiverID === currentChatUserID) {
 			displayMessage({ senderID, receiverID, username, message, messageType, fileUrl });
-		} else if (chatType === 'group') {
-			displayMessage({ senderID, receiverID, username, message, messageType, fileUrl, groupID });
+		} else if (chatType === 'group' && groupID === currentChatGroupID) {
+			displayMessage({ senderID, username, message, messageType, fileUrl, groupID });
 		}
 	});
 
 	function sendMessage(message, file) {
 		if (!message.trim() && !file) return;
 
-		console.log(`Send message to ${currentChatUserID}`);
-
 		const chatType = currentChatGroupID ? 'group' : 'private';
 		const receiverID = currentChatGroupID || currentChatUserID;
+
+		console.log(`Send message to ${receiverID}`);
 
 		console.log('Chat Type: ' + chatType);
 
 		const payload = {
 			senderID: userId,
-			receiverID: receiverID,
+			receiverID: chatType === 'private' ? currentChatUserID : null,
+			groupID: chatType === 'group' ? currentChatGroupID : null,
 			chatType: chatType,
-			groupID: receiverID,
 			message: message,
 			messageType: file ? (file.type.startsWith('image') ? 'image' : 'file') : 'text',
 			fileUrl: null,
@@ -227,7 +227,7 @@ function setupChat(data) {
 		const payload = {
 			userID: userId,
 			otherUserID: chatType === 'private' ? currentChatUserID : null,
-			groupID: chatType === 'group' ? currentChatUserID : null,
+			groupID: chatType === 'group' ? currentChatGroupID : null,
 			chatType,
 		};
 
@@ -253,8 +253,10 @@ function setupChat(data) {
 		socket.on('newMessage', ({ senderID, receiverID, username, message, messageType, fileUrl, groupID }) => {
 			if (chatType === 'private' && receiverID === currentChatUserID) {
 				displayMessage({ senderID, receiverID, username, message, messageType, fileUrl });
-			} else if (chatType === 'group' && groupID === currentChatUserID) {
+				console.log('Runnings');
+			} else if (chatType === 'group' && groupID === currentChatGroupID) {
 				displayMessage({ senderID, receiverID, username, message, messageType, fileUrl });
+				console.log('Running');
 			}
 		});
 	}

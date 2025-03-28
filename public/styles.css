@@ -283,6 +283,10 @@ a {
     overflow-y: auto;
 }
 
+#recentchats {
+    max-height: 350px;
+    overflow-y: auto;
+}
 
 
 

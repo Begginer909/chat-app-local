@@ -61,7 +61,7 @@ export function initializeSocket(io) {
 					if (messageType === 'text') {
 						db.query(query, params, (err, result) => {
 							if (!err) {
-								io.emit('newMessage', { senderID, username, message, messageType, fileUrl, chatType });
+								io.emit('newMessage', { senderID, username, message, messageType, fileUrl, chatType, groupID });
 							} else {
 								console.error('Error inserting message:', err);
 							}
@@ -87,7 +87,7 @@ export function initializeSocket(io) {
 							JOIN private p ON (p.senderID = u.userID OR p.receiverID = u.userID)
 							WHERE (p.senderID = ? OR p.receiverID = ?) AND u.userID != ?
 							ORDER BY p.sentAt DESC
-							LIMIT 10)
+							)
 
 							UNION
 
@@ -102,7 +102,7 @@ export function initializeSocket(io) {
 							JOIN group_members gm ON gm.groupID = g.groupID
 							WHERE gm.userID = ?
 							ORDER BY m.sentAt DESC
-							LIMIT 10)
+							)
 						`;
 
 			console.log('user id is: ', userID);
