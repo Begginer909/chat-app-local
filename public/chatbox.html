@@ -18,40 +18,57 @@
     </style>
 </head>
 <body>
-
-    <div class="chat-container">
-        <div class="chat-header">
-            <button class="btn btn-danger logout-btn"  data-bs-toggle="modal" data-bs-target="#logoutModal">Logout</button>
-        </div>
-        <div class="chat-body">
-            <div id="messages"></div>
-        </div>
-        <div class="chat-footer">
-            <!-- Preview Container -->
-            <div id="previewContainer">
-                <div id="previewContent"></div>
+    <div class="container">
+        <div class="chat-container">
+            <div class="chat-header">
+                <button class="btn btn-danger logout-btn"  data-bs-toggle="modal" data-bs-target="#logoutModal">Logout</button>
             </div>
-            <div class="row g-3">
-                <div class="col-auto">
-                    <!-- Hidden File Inputs -->
-                    <input type="file" id="fileInput" style="display: none;">
-                    <input type="file" id="imageInput" accept="image/*" style="display: none;">
-
-                    <!-- File Select Buttons with Icons -->
-                    <button class="btn btn-secondary" id="fileIcon"><i class="fas fa-paperclip"></i></button>
-                    <button class="btn btn-secondary" id="imageIcon"><i class="fas fa-image"></i></button>
+            
+            <div class="row">
+                <div class="col-3 g-3 border-end pe-3">
+                    <div class="d-flex">
+                        <input type="search" id="search" class="form-control me-2" placeholder="Search People">
+                        <button type="button" id="createGroup" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#groupModal">
+                            <i class="fa-solid fa-plus"></i>
+                        </button>
+                    </div>
+                    <hr>
+                    <div id="searchResults"></div>
+                    <div id="recentchats"></div>
                 </div>
-                <div class="col">
-                    <input type="text" id="messageInput" class="form-control" placeholder="Type a message...">
-                </div>
-                <div class="col-4">
-                    <button class="btn btn-primary w-100" id="sendButton">Send</button>
+                <div class="col-9">
+                    <div class="chat-body">
+                        <div id="messages"></div>
+                    </div>
+                    <div class="chat-footer">
+                        <!-- Preview Container -->
+                        <div id="previewContainer">
+                            <div id="previewContent"></div>
+                        </div>
+                        <div class="row g-3">
+                            <div class="col-auto">
+                                <!-- Hidden File Inputs -->
+                                <input type="file" id="fileInput" style="display: none;">
+                                <input type="file" id="imageInput" accept="image/*" style="display: none;">
+            
+                                <!-- File Select Buttons with Icons -->
+                                <button class="btn btn-secondary" id="fileIcon"><i class="fas fa-paperclip"></i></button>
+                                <button class="btn btn-secondary" id="imageIcon"><i class="fas fa-image"></i></button>
+                            </div>
+                            <div class="col">
+                                <input type="text" id="messageInput" class="form-control" placeholder="Type a message...">
+                            </div>
+                            <div class="col-lg-2 col-4">
+                                <button class="btn btn-primary w-100" id="sendButton">Send</button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <div id="imageModal" class="modal">
+    <div id="imageModal" class="modal-image">
         <span class="close-modal">&times;</span>
         <img class="modal-content" id="expandedImage">
     </div>
@@ -75,10 +92,38 @@
         </div>
     </div>
 
+    <!--CREATE GROUP MODAL-->
+    <div class="modal fade" id="groupModal" tabindex="-1" aria-labelledby="groupModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title" id="groupModalLabel">Create Group</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+              <form id="groupForm">
+                <div class="mb-3">
+                  <label for="groupName" class="form-label">Group Name</label>
+                  <input type="text" class="form-control" id="groupName" required>
+                </div>
+                <div class="mb-3">
+                  <label for="groupMembers" class="form-label">Add Members</label>
+                  <select class="form-select" id="groupMembers" multiple>
+                  </select>
+                  <small class="text-muted">Hold Ctrl (Cmd on Mac) to select multiple users.</small>
+                </div>
+                <button type="submit" class="btn btn-success">Create Group</button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+
     <script src="http://localhost:3000/socket.io/socket.io.js"></script>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
     <script src="script/script.js"></script>
+    <script src="script/search.js"></script>
     <script src="script/logout.js"></script>
 </body>
 </html>

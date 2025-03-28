@@ -3,6 +3,8 @@ const messageInput = document.getElementById('messageInput');
 const messages = document.getElementById('messages');
 let userId = null;
 let lastSenderId = null;
+let currentChatGroupID = null;
+let currentChatUserID = null;
 
 document.addEventListener('DOMContentLoaded', async () => {
 	try {
@@ -28,40 +30,37 @@ function setupChat(data) {
 
 	socket.emit('requestChatHistory');
 
-	// Load chat history
-	socket.on('chat history', (history) => {
-		lastSenderId = null; // Reset before loading history
-		history.forEach((msg) => {
-			displayMessage({
-				senderID: msg.senderID,
-				username: msg.username,
-				message: msg.message,
-				messageType: msg.messageType,
-				fileUrl: msg.fileUrl,
-			});
-		});
-	});
-
 	// Receive new messages
-	socket.on('newMessage', ({ senderID, username, message, messageType, fileUrl }) => {
-		displayMessage({ senderID, username, message, messageType, fileUrl });
+	socket.on('newMessage', ({ senderID, receiverID, username, message, messageType, fileUrl }) => {
+		displayMessage({ senderID, receiverID, username, message, messageType, fileUrl });
 	});
 
 	function sendMessage(message, file) {
 		if (!message.trim() && !file) return;
 
+		console.log(`Send message to ${currentChatUserID}`);
+
+		const chatType = currentChatGroupID ? 'group' : 'private';
+		const receiverID = currentChatGroupID || currentChatUserID;
+
+		const payload = {
+			senderID: userId,
+			receiverID: receiverID,
+			chatType: chatType,
+			message: message,
+			messageType: file ? (file.type.startsWith('image') ? 'image' : 'file') : 'text',
+			fileUrl: null,
+		};
+
 		if (!file) {
-			socket.emit('sendmessage', {
-				senderID: userId,
-				message: message,
-				messageType: 'text',
-				fileUrl: null,
-			});
+			socket.emit('sendmessage', payload);
 			return;
 		}
 
 		const formData = new FormData();
 		formData.append('userId', userId);
+		formData.append('receiverID', currentChatUserID);
+		formData.append('chatType', chatType);
 		formData.append('message', message || '');
 		formData.append('files', file);
 
@@ -72,15 +71,9 @@ function setupChat(data) {
 			.then((res) => res.json())
 			.then((data) => {
 				console.log('Upload response:', data);
-				const messageType = file ? (file.type.startsWith('image') ? 'image' : 'file') : 'text';
-				const fileUrl = data.fileUrl || null;
+				payload.fileUrl = data.fileUrl || null;
 
-				socket.emit('sendmessage', {
-					senderID: userId,
-					message: message || null,
-					messageType,
-					fileUrl,
-				});
+				socket.emit('sendmessage', messageData);
 			})
 			.catch((err) => console.error('Upload error:', err));
 	}
@@ -169,7 +162,153 @@ function setupChat(data) {
 		messages.scrollTop = messages.scrollHeight;
 	}
 
-	let selectedFiles = []; // Stores selected files
+	//Show recent chat on the left of window
+	function recent(chats) {
+		const chatlist = document.getElementById('recentchats');
+
+		chatlist.innerHTML = ''; // Clear previous list
+
+		const addedUsers = new Set(); // Track unique users
+
+		chats.forEach((chat) => {
+			if (!addedUsers.has(chat.userID)) {
+				// Prevent duplicates
+				addedUsers.add(chat.userID);
+
+				const chatItem = document.createElement('div');
+				chatItem.classList.add('chat-item');
+
+				const button = document.createElement('button');
+				button.type = 'button';
+				button.classList.add('btn', 'btn-light', 'mb-0', 'w-100', 'p-3', 'mb-2');
+
+				if (chat.chatType === 'private') {
+					button.textContent = `${chat.firstname} ${chat.lastname}`;
+				} else {
+					button.textContent = `${chat.username} (Group)`;
+				}
+
+				// Fetch all messages for this user on click
+				button.addEventListener('click', () => {
+					fetchChatHistory(chat.userID, chat.chatType);
+				});
+
+				chatItem.appendChild(button);
+				chatlist.append(chatItem);
+			}
+		});
+	}
+
+	function fetchChatHistory(otherUserID, chatType) {
+		if (currentChatUserID === otherUserID) return;
+
+		currentChatUserID = otherUserID;
+
+		console.log(`current: ${currentChatUserID}`);
+
+		messages.innerHTML = '';
+
+		// Remove previous 'newMessage' listener before setting a new one
+		socket.off('newMessage');
+
+		const payload = {
+			userID: userId,
+			otherUserID: currentChatUserID,
+			chatType,
+		};
+
+		fetch(`http://localhost:3000/search/getMessages`, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+			},
+			body: JSON.stringify(payload),
+		})
+			.then((response) => response.json())
+			.then((messages) => {
+				console.log('Fetched messages:', messages);
+				document.getElementById('messages').innerHTML = '';
+				messages.forEach((msg) => {
+					displayMessage(msg);
+				});
+			})
+			.catch((error) => {
+				console.error('Error fetching chat history:', error);
+			});
+
+		socket.on('newMessage', ({ senderID, receiverID, username, message, messageType, fileUrl }) => {
+			if (chatType === 'private' && receiverID === currentChatUserID) {
+				displayMessage({ senderID, receiverID, username, message, messageType, fileUrl });
+			} else if (chatType === 'group' && groupID === currentChatUserID) {
+				displayMessage({ senderID, receiverID, username, message, messageType, fileUrl });
+			}
+		});
+	}
+
+	socket.emit('recentChat', userId);
+
+	socket.on('recentChatResult', (data) => {
+		console.log('Recent Data: ', data);
+		recent(data);
+	});
+
+	async function fetchUsers() {
+		try {
+			const response = await fetch(`http://localhost:3000/search/users?userId=${userId}`);
+			if (!response.ok) throw new Error('Failed to fetch users');
+
+			const users = await response.json();
+			const selectElement = document.getElementById('groupMembers');
+
+			selectElement.innerHTML = ''; // Clear previous options
+
+			users.forEach((user) => {
+				const option = document.createElement('option');
+				option.value = user.userID;
+				option.textContent = `${user.firstname} ${user.lastname}`;
+				selectElement.appendChild(option);
+			});
+		} catch (error) {
+			console.error('Error loading users:', error);
+		}
+	}
+
+	//Create group when the modal submitted
+	document.getElementById('groupForm').addEventListener('submit', async (e) => {
+		e.preventDefault();
+
+		const groupName = document.getElementById('groupName').value;
+		const members = Array.from(document.getElementById('groupMembers').selectedOptions).map((opt) => opt.value);
+		const creatorID = userId;
+
+		console.log(creatorID);
+
+		if (!groupName.trim() || members.length === 0) {
+			alert('Please enter a group name and select at least one member.');
+			return;
+		}
+
+		try {
+			const response = await fetch('http://localhost:3000/search/createGroup', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ groupName, members, creatorID }),
+			});
+
+			if (!response.ok) throw new Error('Failed to create group');
+
+			alert('Group created successfully!');
+			document.getElementById('groupForm').reset();
+			fetchUsers(); // Refresh user list
+		} catch (error) {
+			console.error('Error creating group:', error);
+		}
+	});
+
+	document.getElementById('createGroup').addEventListener('click', fetchUsers());
+
+	//Jquery for previewing the images or files when user selects it
+	let selectedFiles = []; // Stores selected files or images
 
 	// Function to add files to array and update preview
 	function addFiles(files) {
@@ -252,6 +391,7 @@ function setupChat(data) {
 		});
 	});
 
+	//Keypress so when the user hit enter it will automatically sends a message, because it ables to call a fucntion
 	messageInput.addEventListener('keypress', function (e) {
 		if (e.key === 'Enter') {
 			e.preventDefault(); // Prevent default Enter behavior

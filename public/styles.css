@@ -193,7 +193,7 @@ button {
     opacity: 0.8;
 }
   
-.modal {
+.modal-image {
     display: none;
     position: fixed;
     z-index: 1000;
@@ -278,6 +278,10 @@ a {
     
 }
 
+#searchResults {
+    max-height: 300px;
+    overflow-y: auto;
+}
 
 
 

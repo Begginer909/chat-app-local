@@ -32,7 +32,7 @@ const upload = multer({ storage });
 
 // Route for multiple file uploads
 router.post('/upload', upload.array('files', 10), (req, res) => {
-	const { userId, message, chatType, receiverID, groupID } = req.body;
+	const { senderID, message, chatType, groupID } = req.body;
 	// Allows up to 10 files
 	if (!req.files || req.files.length === 0) {
 		if (req.body.message) {
