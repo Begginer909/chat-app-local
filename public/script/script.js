@@ -31,8 +31,12 @@ function setupChat(data) {
 	socket.emit('requestChatHistory');
 
 	// Receive new messages
-	socket.on('newMessage', ({ senderID, receiverID, username, message, messageType, fileUrl }) => {
-		displayMessage({ senderID, receiverID, username, message, messageType, fileUrl });
+	socket.on('newMessage', ({ senderID, receiverID, username, message, messageType, fileUrl, chatType }) => {
+		if (chatType === 'private') {
+			displayMessage({ senderID, receiverID, username, message, messageType, fileUrl });
+		} else if (chatType === 'group') {
+			displayMessage({ senderID, receiverID, username, message, messageType, fileUrl, groupID });
+		}
 	});
 
 	function sendMessage(message, file) {
@@ -43,10 +47,13 @@ function setupChat(data) {
 		const chatType = currentChatGroupID ? 'group' : 'private';
 		const receiverID = currentChatGroupID || currentChatUserID;
 
+		console.log('Chat Type: ' + chatType);
+
 		const payload = {
 			senderID: userId,
 			receiverID: receiverID,
 			chatType: chatType,
+			groupID: receiverID,
 			message: message,
 			messageType: file ? (file.type.startsWith('image') ? 'image' : 'file') : 'text',
 			fileUrl: null,
@@ -202,7 +209,13 @@ function setupChat(data) {
 	function fetchChatHistory(otherUserID, chatType) {
 		if (currentChatUserID === otherUserID) return;
 
-		currentChatUserID = otherUserID;
+		if (chatType === 'group') {
+			currentChatGroupID = otherUserID; // Set group ID
+			currentChatUserID = null; // Reset private chat ID
+		} else {
+			currentChatUserID = otherUserID; // Set private chat ID
+			currentChatGroupID = null; // Reset group chat ID
+		}
 
 		console.log(`current: ${currentChatUserID}`);
 
@@ -213,7 +226,8 @@ function setupChat(data) {
 
 		const payload = {
 			userID: userId,
-			otherUserID: currentChatUserID,
+			otherUserID: chatType === 'private' ? currentChatUserID : null,
+			groupID: chatType === 'group' ? currentChatUserID : null,
 			chatType,
 		};
 
@@ -236,7 +250,7 @@ function setupChat(data) {
 				console.error('Error fetching chat history:', error);
 			});
 
-		socket.on('newMessage', ({ senderID, receiverID, username, message, messageType, fileUrl }) => {
+		socket.on('newMessage', ({ senderID, receiverID, username, message, messageType, fileUrl, groupID }) => {
 			if (chatType === 'private' && receiverID === currentChatUserID) {
 				displayMessage({ senderID, receiverID, username, message, messageType, fileUrl });
 			} else if (chatType === 'group' && groupID === currentChatUserID) {

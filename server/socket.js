@@ -20,9 +20,7 @@ export function initializeSocket(io) {
 			});
 		});
 
-		socket.on('sendmessage', ({ senderID, receiverID, message, messageType, fileUrl }) => {
-			let query;
-
+		socket.on('sendmessage', ({ senderID, receiverID, message, messageType, fileUrl, groupID, chatType }) => {
 			db.query('SELECT username FROM users WHERE userID = ?', [senderID], (err, results) => {
 				if (err) {
 					console.error('Database error:', err);
@@ -35,18 +33,43 @@ export function initializeSocket(io) {
 				}
 
 				const username = results[0].username;
+				let query;
+				let params;
 
-				if (messageType === 'text') {
-					db.query('INSERT INTO private (senderID, receiverID, message, messageType, fileUrl) VALUES (?, ?, ?, ?, ?)', [senderID, receiverID, message, messageType, fileUrl], (err, result) => {
-						if (!err) {
-							io.emit('newMessage', { senderID, receiverID, username, message, messageType, fileUrl });
-						} else {
-							console.error('Error inserting message:', err);
-						}
-					});
-				} else {
-					// For file messages, just broadcast to all clients since DB insert was done in the upload endpoint
-					io.emit('newMessage', { senderID, username, message, messageType, fileUrl });
+				if (chatType === 'private') {
+					query = 'INSERT INTO private (senderID, receiverID, message, messageType, fileUrl) VALUES (?, ?, ?, ?, ?)';
+					params = [senderID, receiverID, message, messageType, fileUrl];
+
+					if (messageType === 'text') {
+						db.query(query, params, (err, result) => {
+							if (!err) {
+								io.emit('newMessage', { senderID, receiverID, username, message, messageType, fileUrl, chatType });
+							} else {
+								console.error('Error inserting message:', err);
+							}
+						});
+					} else {
+						// For file messages, just broadcast to all clients since DB insert was done in the upload endpoint
+						io.emit('newMessage', { senderID, username, message, messageType, fileUrl });
+					}
+				} else if (chatType === 'group') {
+					query = 'INSERT INTO messages (senderID, message, messageType, fileUrl, groupID) VALUES (?, ?, ?, ?, ?)';
+					params = [senderID, message, messageType, fileUrl, groupID];
+
+					console.log(`Group id is: ${groupID}`);
+
+					if (messageType === 'text') {
+						db.query(query, params, (err, result) => {
+							if (!err) {
+								io.emit('newMessage', { senderID, username, message, messageType, fileUrl, chatType });
+							} else {
+								console.error('Error inserting message:', err);
+							}
+						});
+					} else {
+						// For file messages, just broadcast to all clients since DB insert was done in the upload endpoint
+						io.emit('newMessage', { senderID, username, message, messageType, fileUrl });
+					}
 				}
 			});
 		});

@@ -35,8 +35,7 @@ router.post('/getMessages', (req, res) => {
 			SELECT u.userID, p.senderID, p.receiverID, u.username, p.message, p.sentAt
 			FROM private p
 			JOIN users u ON u.userID = p.senderID
-			JOIN u ON u.userID = p.receiverID
-			WHERE (p.senderID = ? AND p.receiverID = ?) OR (p.receiverID = ? AND p.senderID = ?)
+			WHERE (p.senderID = ? AND p.receiverID = ?) OR (p.senderID = ? AND p.receiverID = ?)
 			ORDER BY p.sentAt ASC`;
 
 		params = [userID, otherUserID, otherUserID, userID];
