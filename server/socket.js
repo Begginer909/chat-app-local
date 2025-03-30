@@ -4,86 +4,7 @@ export function initializeSocket(io) {
 	io.on('connection', (socket) => {
 		console.log('A user connected', socket.id);
 
-		/*
-		let chatHistory = `SELECT
-                            p.senderID, p.receiverID, p.message, p.messageType, p.fileUrl, u.username 
-                        FROM private p JOIN users u 
-                        ON p.senderID = u.userID
-                        ORDER BY p.messageID ASC`;
-
-		socket.on('requestChatHistory', (chatType) => {
-			let chatHistory;
-
-			if (chatType === 'private') {
-			} else if (chatType === 'group') {
-			}
-			db.query(chatHistory, (err, results) => {
-				if (err) {
-					console.error('Error fetching chat history', err);
-				} else {
-					socket.emit('chat history', results);
-				}
-			});
-		});
-		*/
-
-		socket.on('sendmessage', ({ senderID, receiverID, message, messageType, fileUrl, groupID, chatType }) => {
-			db.query('SELECT username FROM users WHERE userID = ?', [senderID], (err, results) => {
-				if (err) {
-					console.error('Database error:', err);
-					return;
-				}
-
-				if (results.length === 0) {
-					console.error('User not found');
-					return;
-				}
-
-				const username = results[0].username;
-				let query;
-				let params;
-
-				if (chatType === 'private') {
-					query = 'INSERT INTO private (senderID, receiverID, message, messageType, fileUrl) VALUES (?, ?, ?, ?, ?)';
-					params = [senderID, receiverID, message, messageType, fileUrl];
-
-					if (messageType === 'text') {
-						db.query(query, params, (err, result) => {
-							if (!err) {
-								io.emit('newMessage', { senderID, receiverID, username, message, messageType, fileUrl, chatType });
-								console.log(`File url is ${fileUrl}`);
-							} else {
-								console.error('Error inserting message:', err);
-							}
-						});
-					} else {
-						// For file messages, just broadcast to all clients since DB insert was done in the upload endpoint
-						io.emit('newMessage', { senderID, receiverID, username, message, messageType, fileUrl, groupID, chatType });
-					}
-				} else if (chatType === 'group') {
-					query = 'INSERT INTO messages (senderID, message, messageType, fileUrl, groupID) VALUES (?, ?, ?, ?, ?)';
-					params = [senderID, message, messageType, fileUrl, groupID];
-
-					console.log(`Group id is: ${groupID}`);
-
-					if (messageType === 'text') {
-						db.query(query, params, (err, result) => {
-							if (!err) {
-								io.emit('newMessage', { senderID, username, message, messageType, fileUrl, chatType, groupID });
-							} else {
-								console.error('Error inserting message:', err);
-							}
-						});
-					} else {
-						// For file messages, just broadcast to all clients since DB insert was done in the upload endpoint
-						io.emit('newMessage', { senderID, receiverID, username, message, messageType, fileUrl, groupID, chatType });
-					}
-				}
-			});
-		});
-
-		socket.on('recentChat', (userID) => {
-			const query = `
+		const recentChatQuery = `
 							(SELECT 
 								u.userID, 
 								u.username,
@@ -112,9 +33,126 @@ export function initializeSocket(io) {
 							ORDER BY sentAt DESC
 						`;
 
+		socket.on('sendmessage', ({ senderID, receiverID, message, messageType, fileUrl, groupID, chatType }) => {
+			db.query('SELECT username FROM users WHERE userID = ?', [senderID], (err, results) => {
+				if (err) {
+					console.error('Database error:', err);
+					return;
+				}
+
+				if (results.length === 0) {
+					console.error('User not found');
+					return;
+				}
+
+				const username = results[0].username;
+				let query;
+				let params;
+
+				if (chatType === 'private') {
+					query = 'INSERT INTO private (senderID, receiverID, message, messageType, fileUrl) VALUES (?, ?, ?, ?, ?)';
+					params = [senderID, receiverID, message, messageType, fileUrl];
+
+					if (messageType === 'text') {
+						db.query(query, params, (err, result) => {
+							if (!err) {
+								io.emit('newMessage', { senderID, receiverID, username, message, messageType, fileUrl, chatType });
+
+								if (senderID === senderID) {
+									db.query(recentChatQuery, [senderID, senderID, senderID, senderID], (err, result) => {
+										console.log(`sender ${senderID}`);
+										if (!err) {
+											io.emit('recentChatResult', result);
+										}
+									});
+									return;
+								}
+
+								if (receiverID === receiverID) {
+									// Fetch for receiver
+									db.query(recentChatQuery, [receiverID, receiverID, receiverID, receiverID], (err, result) => {
+										console.log(`received ${receiverID}`);
+										if (!err) {
+											io.emit('recentChatResult', result);
+										}
+									});
+									return;
+								}
+							} else {
+								console.error('Error inserting message:', err);
+							}
+						});
+					} else {
+						// For file messages, just broadcast to all clients since DB insert was done in the upload endpoint
+						io.emit('newMessage', { senderID, receiverID, username, message, messageType, fileUrl, groupID, chatType });
+
+						db.query(recentChatQuery, [senderID, senderID, senderID, senderID], (err, result) => {
+							if (!err) {
+								io.emit('recentChatResult', result);
+							}
+						});
+
+						// Fetch for receiver
+						db.query(recentChatQuery, [receiverID, receiverID, receiverID, receiverID], (err, result) => {
+							if (!err) {
+								io.emit('recentChatResult', result);
+							}
+						});
+					}
+				} else if (chatType === 'group') {
+					query = 'INSERT INTO messages (senderID, message, messageType, fileUrl, groupID) VALUES (?, ?, ?, ?, ?)';
+					params = [senderID, message, messageType, fileUrl, groupID];
+
+					console.log(`Group id is: ${groupID}`);
+
+					if (messageType === 'text') {
+						db.query(query, params, (err, result) => {
+							if (!err) {
+								io.emit('newMessage', { senderID, username, message, messageType, fileUrl, chatType, groupID });
+
+								db.query(recentChatQuery, [senderID, senderID, senderID, senderID], (err, result) => {
+									console.log(`sender ${senderID}`);
+									if (!err) {
+										io.emit('recentChatResult', result);
+									}
+								});
+
+								// Fetch for receiver
+								db.query(recentChatQuery, [receiverID, receiverID, receiverID, receiverID], (err, result) => {
+									console.log(`received ${receiverID}`);
+									if (!err) {
+										io.emit('recentChatResult', result);
+									}
+								});
+							} else {
+								console.error('Error inserting message:', err);
+							}
+						});
+					} else {
+						// For file messages, just broadcast to all clients since DB insert was done in the upload endpoint
+						io.emit('newMessage', { senderID, receiverID, username, message, messageType, fileUrl, groupID, chatType });
+
+						db.query(recentChatQuery, [senderID, senderID, senderID, senderID], (err, result) => {
+							if (!err) {
+								io.emit('recentChatResult', result);
+							}
+						});
+
+						// Fetch for receiver
+						db.query(recentChatQuery, [receiverID, receiverID, receiverID, receiverID], (err, result) => {
+							if (!err) {
+								io.emit('recentChatResult', result);
+							}
+						});
+					}
+				}
+			});
+		});
+
+		socket.on('recentChat', (userID) => {
 			console.log('user id is: ', userID);
 
-			db.query(query, [userID, userID, userID, userID], (err, result) => {
+			db.query(recentChatQuery, [userID, userID, userID, userID], (err, result) => {
 				if (err) {
 					console.error('Error fetching recent chat', err);
 				} else {

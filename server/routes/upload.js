@@ -24,7 +24,11 @@ const storage = multer.diskStorage({
 		const userId = req.body.senderID || 'unknown';
 		const timestamp = Date.now();
 		const ext = path.extname(file.originalname);
-		cb(null, `${userId}_${timestamp}${ext}`);
+		const originalName = path.basename(file.originalname, ext); // Get filename without extension
+		const newFileName = `${userId}_${timestamp}${ext}`; // Rename file for storage
+		file.newFileName = newFileName; // Attach new filename to file object
+		file.originalName = file.originalname; // Attach original filename
+		cb(null, newFileName);
 	},
 });
 
@@ -41,9 +45,14 @@ router.post('/upload', upload.array('files', 10), (req, res) => {
 		return res.status(400).json({ error: 'No files uploads' });
 	}
 
-	const fileUrls = req.files.map((file) => `/uploads/${file.filename}`);
+	const filesData = req.files.map((file) => ({
+		originalName: file.originalName, // Store original filename
+		storedFileName: file.newFileName, // Store renamed file
+		url: `/uploads/${file.newFileName}`,
+	}));
+
 	//Convert file Urls to a JSON string for storage in MySQL
-	const fileUrlsJSON = JSON.stringify(fileUrls);
+	const filesDataJSON = JSON.stringify(filesData);
 	const messageToSave = message && message.trim() !== '' ? message : '';
 	// Assuming only one file type is uploaded per request
 	const messageType = req.files[0].mimetype.startsWith('image') ? 'image' : 'file';
@@ -53,10 +62,10 @@ router.post('/upload', upload.array('files', 10), (req, res) => {
 
 	if (chatType == 'group') {
 		sql = 'INSERT INTO messages (senderID, groupID, message, messageType, fileUrl) VALUES (?, ?, ?, ?, ?)';
-		params = [senderID, groupID, messageToSave, messageType, fileUrlsJSON];
+		params = [senderID, groupID, messageToSave, messageType, filesDataJSON];
 	} else if (chatType == 'private') {
 		sql = 'INSERT INTO private (senderID, receiverID, message, messageType, fileUrl) VALUES (?, ?, ?, ?, ?)';
-		params = [senderID, receiverID, messageToSave, messageType, fileUrlsJSON];
+		params = [senderID, receiverID, messageToSave, messageType, filesDataJSON];
 	} else {
 		return res.status(400).json({ error: 'Invalid chatType' });
 	}
@@ -66,7 +75,7 @@ router.post('/upload', upload.array('files', 10), (req, res) => {
 			console.error('Database error', err);
 			return res.status(500).json({ error: 'Database error' });
 		}
-		res.json({ message: 'File uploaded successfully', fileUrl: fileUrlsJSON, fileUrls });
+		res.json({ message: 'File uploaded successfully', fileUrl: filesDataJSON });
 	});
 });
 

@@ -2,6 +2,7 @@ const socket = io('http://localhost:3000');
 const messageInput = document.getElementById('messageInput');
 const messages = document.getElementById('messages');
 const chatName = document.getElementById('name');
+const fullname = document.getElementById('username');
 let userId = null;
 let lastSenderId = null;
 let currentChatGroupID = null;
@@ -17,7 +18,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 		if (!response.ok) {
 			throw new Error('Failed to fetch user information');
 		}
-
 		const data = await response.json();
 
 		setupChat(data.user);
@@ -29,7 +29,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 function setupChat(data) {
 	userId = data.userID;
 
-	//socket.emit('requestChatHistory');
+	fullname.textContent = `${data.username}`;
 
 	// Receive new messages
 	socket.on('newMessage', ({ senderID, receiverID, username, message, messageType, fileUrl, groupID, chatType }) => {
@@ -89,8 +89,6 @@ function setupChat(data) {
 				payload.fileUrl = data.fileUrl || null;
 
 				console.log(`payload: ${payload}`);
-
-				socket.emit('sendmessage', payload);
 			})
 			.catch((err) => console.error('Upload error:', err));
 	}
@@ -127,10 +125,10 @@ function setupChat(data) {
 				const fileUrls = JSON.parse(msg.fileUrl);
 				console.log(`parse ${fileUrls}`);
 				console.log(fileUrls);
-				fileUrls.forEach((url) => {
-					console.log(`url is: ${url}`);
+				fileUrls.forEach((file) => {
+					console.log(`url is: ${file.url}`);
 					const imgElement = document.createElement('img');
-					imgElement.src = `http://localhost/chat-app/server${url}`;
+					imgElement.src = `http://localhost/chat-app/server${file.url}`;
 					imgElement.classList.add('chat-image', 'img-fluid'); // Add Bootstrap class
 
 					imgElement.addEventListener('click', function () {
@@ -145,15 +143,15 @@ function setupChat(data) {
 		} else if (msg.messageType === 'file' && msg.fileUrl) {
 			try {
 				const fileUrls = JSON.parse(msg.fileUrl);
-				fileUrls.forEach((url) => {
-					const displayname = ` ${url.split('/').pop()}`;
+				fileUrls.forEach((file) => {
+					const displayname = ` ${file.originalName}`;
 					const iconspan = document.createElement('span');
 					iconspan.classList.add('file-icon');
 					iconspan.innerHTML = '<i class="fas fa-file-alt"></i>';
 
 					const fileLink = document.createElement('a');
 					fileLink.append(iconspan);
-					fileLink.href = `http://localhost/chat-app/server${url}`; // Correct URL format
+					fileLink.href = `http://localhost/chat-app/server${file.url}`; // Correct URL format
 					fileLink.append(displayname);
 					fileLink.target = '_blank';
 					fileLink.classList.add('file-link');
@@ -452,7 +450,7 @@ function setupChat(data) {
 			if (file.type.startsWith('image/')) {
 				previewItem.append(`<img src="${e.target.result}" class="preview-image">`);
 			} else {
-				previewItem.append(`<p class="preview-text"> ${file.name}</p>`);
+				previewItem.append(`<p class="preview-text"> <i class="fas fa-file-alt"></i> ${file.name}</p>`);
 			}
 
 			const removeBtn = $('<button>')
