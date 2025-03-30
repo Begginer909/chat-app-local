@@ -1,6 +1,7 @@
 const socket = io('http://localhost:3000');
 const messageInput = document.getElementById('messageInput');
 const messages = document.getElementById('messages');
+const chatName = document.getElementById('name');
 let userId = null;
 let lastSenderId = null;
 let currentChatGroupID = null;
@@ -191,6 +192,7 @@ function setupChat(data) {
 		const addedUsers = new Set(); // Track unique users
 
 		chats.forEach((chat) => {
+			let chatNameUsers;
 			if (!addedUsers.has(chat.userID)) {
 				// Prevent duplicates
 				addedUsers.add(chat.userID);
@@ -204,13 +206,24 @@ function setupChat(data) {
 
 				if (chat.chatType === 'private') {
 					button.textContent = `${chat.firstname} ${chat.lastname}`;
+					chatNameUsers = `${chat.firstname} ${chat.lastname}`;
 				} else {
 					button.textContent = `${chat.username} (Group)`;
+					chatNameUsers = `${chat.username} (Group)`;
 				}
 
 				// Fetch all messages for this user on click
 				button.addEventListener('click', () => {
 					fetchChatHistory(chat.userID, chat.chatType);
+					chatName.textContent = `${chatNameUsers}`;
+
+					// Remove hover-effect class from all buttons
+					document.querySelectorAll('.chat-item button').forEach((btn) => {
+						btn.classList.remove('hover-effect');
+					});
+
+					// Add hover effect class to the clicked button
+					button.classList.add('hover-effect');
 				});
 
 				chatItem.appendChild(button);
@@ -399,11 +412,19 @@ function setupChat(data) {
 		data.forEach((user) => {
 			const userDiv = document.createElement('div');
 			userDiv.classList.add('search-item', 'p-2', 'border-bottom');
-			userDiv.innerHTML = `
-                <div class="d-flex align-items-center">
-                    <button type="button" onclick="${fetchChatHistory(user.userID, chatType)}" class="btn btn-light mb-0 w-100 p-3">${user.firstname} ${user.lastname}</button>
-                </div>
-            `;
+			const button = document.createElement('button');
+			button.type = 'button';
+			button.classList.add('btn', 'btn-light', 'mb-0', 'w-100', 'p-3', 'mb-2');
+			button.textContent = `${user.firstname} ${user.lastname} ${user.userID}`;
+
+			// Fetch all messages for this user on click
+			button.addEventListener('click', () => {
+				fetchChatHistory(user.userID, chatType);
+				searchResults.style.display = 'none';
+				recentChat.style.display = 'block';
+				chatName.textContent = `${user.firstname} ${user.lastname}`;
+			});
+			userDiv.appendChild(button);
 			searchResults.appendChild(userDiv);
 		});
 		searchResults.scrollTop = searchResults.scrollHeight;
