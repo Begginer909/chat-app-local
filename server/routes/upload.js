@@ -21,7 +21,7 @@ const storage = multer.diskStorage({
 		cb(null, uploadDir);
 	},
 	filename: (req, file, cb) => {
-		const userId = req.body.userId || 'unknown';
+		const userId = req.body.senderID || 'unknown';
 		const timestamp = Date.now();
 		const ext = path.extname(file.originalname);
 		cb(null, `${userId}_${timestamp}${ext}`);
@@ -32,7 +32,7 @@ const upload = multer({ storage });
 
 // Route for multiple file uploads
 router.post('/upload', upload.array('files', 10), (req, res) => {
-	const { senderID, message, chatType, groupID } = req.body;
+	const { senderID, receiverID, message, chatType, groupID } = req.body;
 	// Allows up to 10 files
 	if (!req.files || req.files.length === 0) {
 		if (req.body.message) {
@@ -53,10 +53,10 @@ router.post('/upload', upload.array('files', 10), (req, res) => {
 
 	if (chatType == 'group') {
 		sql = 'INSERT INTO messages (senderID, groupID, message, messageType, fileUrl) VALUES (?, ?, ?, ?, ?)';
-		params = [userId, groupID, messageToSave, messageType, fileUrlsJSON];
+		params = [senderID, groupID, messageToSave, messageType, fileUrlsJSON];
 	} else if (chatType == 'private') {
 		sql = 'INSERT INTO private (senderID, receiverID, message, messageType, fileUrl) VALUES (?, ?, ?, ?, ?)';
-		params = [userId, receiverID, messageToSave, messageType, fileUrlsJSON];
+		params = [senderID, receiverID, messageToSave, messageType, fileUrlsJSON];
 	} else {
 		return res.status(400).json({ error: 'Invalid chatType' });
 	}

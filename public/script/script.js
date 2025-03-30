@@ -28,7 +28,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 function setupChat(data) {
 	userId = data.userID;
 
-	socket.emit('requestChatHistory');
+	//socket.emit('requestChatHistory');
 
 	// Receive new messages
 	socket.on('newMessage', ({ senderID, receiverID, username, message, messageType, fileUrl, groupID, chatType }) => {
@@ -49,10 +49,13 @@ function setupChat(data) {
 
 		console.log('Chat Type: ' + chatType);
 
+		const receiver = chatType === 'private' ? currentChatUserID : null;
+		const groupID = chatType === 'group' ? currentChatGroupID : null;
+
 		const payload = {
 			senderID: userId,
-			receiverID: chatType === 'private' ? currentChatUserID : null,
-			groupID: chatType === 'group' ? currentChatGroupID : null,
+			receiverID: receiver,
+			groupID: groupID,
 			chatType: chatType,
 			message: message,
 			messageType: file ? (file.type.startsWith('image') ? 'image' : 'file') : 'text',
@@ -65,11 +68,15 @@ function setupChat(data) {
 		}
 
 		const formData = new FormData();
-		formData.append('userId', userId);
+		formData.append('senderID', userId);
 		formData.append('receiverID', currentChatUserID);
 		formData.append('chatType', chatType);
 		formData.append('message', message || '');
 		formData.append('files', file);
+		formData.append('groupID', groupID);
+
+		console.log(`Chat Type is ${chatType}`);
+		console.log(`GROUP ID IS ${groupID}`);
 
 		fetch('http://localhost:3000/api/upload', {
 			method: 'POST',
@@ -80,12 +87,16 @@ function setupChat(data) {
 				console.log('Upload response:', data);
 				payload.fileUrl = data.fileUrl || null;
 
-				socket.emit('sendmessage', messageData);
+				console.log(`payload: ${payload}`);
+
+				socket.emit('sendmessage', payload);
 			})
 			.catch((err) => console.error('Upload error:', err));
 	}
 
 	function displayMessage(msg) {
+		console.log(msg.message);
+		console.log(`msg${msg.fileUrl}`);
 		const messageWrapper = document.createElement('div');
 		messageWrapper.classList.add('message-wrapper');
 
@@ -109,12 +120,14 @@ function setupChat(data) {
 			messageWrapper.classList.add('other-message'); // Align left
 		}
 
+		console.log(`${msg.fileUrl} 222`);
 		if (msg.messageType === 'image' && msg.fileUrl) {
 			try {
 				const fileUrls = JSON.parse(msg.fileUrl);
+				console.log(`parse ${fileUrls}`);
 				console.log(fileUrls);
 				fileUrls.forEach((url) => {
-					console.log(url);
+					console.log(`url is: ${url}`);
 					const imgElement = document.createElement('img');
 					imgElement.src = `http://localhost/chat-app/server${url}`;
 					imgElement.classList.add('chat-image', 'img-fluid'); // Add Bootstrap class
@@ -253,10 +266,10 @@ function setupChat(data) {
 		socket.on('newMessage', ({ senderID, receiverID, username, message, messageType, fileUrl, groupID }) => {
 			if (chatType === 'private' && receiverID === currentChatUserID) {
 				displayMessage({ senderID, receiverID, username, message, messageType, fileUrl });
-				console.log('Runnings');
+				console.log('Runnings' + fileUrl);
 			} else if (chatType === 'group' && groupID === currentChatGroupID) {
 				displayMessage({ senderID, receiverID, username, message, messageType, fileUrl });
-				console.log('Running');
+				console.log('Running' + fileUrl);
 			}
 		});
 	}
@@ -321,7 +334,80 @@ function setupChat(data) {
 		}
 	});
 
-	document.getElementById('createGroup').addEventListener('click', fetchUsers());
+	document.getElementById('createGroup').addEventListener('click', fetchUsers);
+
+	//Search users to start a new chat
+	const searchInput = document.getElementById('search');
+	const searchResults = document.getElementById('searchResults');
+	const recentChat = document.getElementById('recentchats');
+
+	function fetchSearchResults(searchValue) {
+		if (!searchValue.trim()) return Promise.resolve([]); // Prevent empty search requests
+
+		return fetch('http://localhost:3000/search/recent', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ search: searchValue }),
+		})
+			.then((response) => {
+				if (!response.ok) {
+					throw new Error(`HTTP error! Status: ${response.status}`);
+				}
+				return response.json();
+			})
+			.catch((error) => {
+				console.error('Error fetching search results:', error);
+				return []; // Return empty array if there's an error
+			});
+	}
+
+	let lastSearchValue = ''; // Store the last search value
+
+	// Detect typing in the search bar
+	searchInput.addEventListener('input', async () => {
+		const searchValue = searchInput.value.trim();
+
+		if (searchValue === lastSearchValue) {
+			return; // Prevent duplicate search requests
+		}
+
+		lastSearchValue = searchValue;
+
+		if (searchValue === '') {
+			// If search is empty, show recent chats again
+			searchResults.innerHTML = '';
+			searchResults.style.display = 'none';
+			recentChat.style.display = 'block'; // Show recent chats
+			return; // Exit function
+		}
+		searchResults.style.display = 'block';
+		recentChat.style.display = 'none';
+
+		// Fetch search results and display them
+		const data = await fetchSearchResults(searchValue);
+		displaySearchResults(data);
+	});
+
+	function displaySearchResults(data) {
+		searchResults.innerHTML = ''; // Clear previous results
+		chatType = 'private';
+
+		if (data.length === 0) {
+			searchResults.innerHTML = '<p class="text-muted">No results found</p>';
+			return;
+		}
+		data.forEach((user) => {
+			const userDiv = document.createElement('div');
+			userDiv.classList.add('search-item', 'p-2', 'border-bottom');
+			userDiv.innerHTML = `
+                <div class="d-flex align-items-center">
+                    <button type="button" onclick="${fetchChatHistory(user.userID, chatType)}" class="btn btn-light mb-0 w-100 p-3">${user.firstname} ${user.lastname}</button>
+                </div>
+            `;
+			searchResults.appendChild(userDiv);
+		});
+		searchResults.scrollTop = searchResults.scrollHeight;
+	}
 
 	//Jquery for previewing the images or files when user selects it
 	let selectedFiles = []; // Stores selected files or images
@@ -412,7 +498,6 @@ function setupChat(data) {
 		if (e.key === 'Enter') {
 			e.preventDefault(); // Prevent default Enter behavior
 			const message = $('#messageInput').val().trim();
-
 			// Send each selected file individually
 			if (selectedFiles.length > 0) {
 				selectedFiles.forEach((file) => {

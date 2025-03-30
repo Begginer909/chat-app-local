@@ -4,13 +4,19 @@ export function initializeSocket(io) {
 	io.on('connection', (socket) => {
 		console.log('A user connected', socket.id);
 
+		/*
 		let chatHistory = `SELECT
                             p.senderID, p.receiverID, p.message, p.messageType, p.fileUrl, u.username 
                         FROM private p JOIN users u 
                         ON p.senderID = u.userID
                         ORDER BY p.messageID ASC`;
 
-		socket.on('requestChatHistory', () => {
+		socket.on('requestChatHistory', (chatType) => {
+			let chatHistory;
+
+			if (chatType === 'private') {
+			} else if (chatType === 'group') {
+			}
 			db.query(chatHistory, (err, results) => {
 				if (err) {
 					console.error('Error fetching chat history', err);
@@ -19,6 +25,7 @@ export function initializeSocket(io) {
 				}
 			});
 		});
+		*/
 
 		socket.on('sendmessage', ({ senderID, receiverID, message, messageType, fileUrl, groupID, chatType }) => {
 			db.query('SELECT username FROM users WHERE userID = ?', [senderID], (err, results) => {
@@ -44,13 +51,14 @@ export function initializeSocket(io) {
 						db.query(query, params, (err, result) => {
 							if (!err) {
 								io.emit('newMessage', { senderID, receiverID, username, message, messageType, fileUrl, chatType });
+								console.log(`File url is ${fileUrl}`);
 							} else {
 								console.error('Error inserting message:', err);
 							}
 						});
 					} else {
 						// For file messages, just broadcast to all clients since DB insert was done in the upload endpoint
-						io.emit('newMessage', { senderID, username, message, messageType, fileUrl });
+						io.emit('newMessage', { senderID, receiverID, username, message, messageType, fileUrl, groupID, chatType });
 					}
 				} else if (chatType === 'group') {
 					query = 'INSERT INTO messages (senderID, message, messageType, fileUrl, groupID) VALUES (?, ?, ?, ?, ?)';
@@ -68,7 +76,7 @@ export function initializeSocket(io) {
 						});
 					} else {
 						// For file messages, just broadcast to all clients since DB insert was done in the upload endpoint
-						io.emit('newMessage', { senderID, username, message, messageType, fileUrl });
+						io.emit('newMessage', { senderID, receiverID, username, message, messageType, fileUrl, groupID, chatType });
 					}
 				}
 			});
@@ -86,7 +94,6 @@ export function initializeSocket(io) {
 							FROM users u
 							JOIN private p ON (p.senderID = u.userID OR p.receiverID = u.userID)
 							WHERE (p.senderID = ? OR p.receiverID = ?) AND u.userID != ?
-							ORDER BY p.sentAt DESC
 							)
 
 							UNION
@@ -101,8 +108,8 @@ export function initializeSocket(io) {
 							FROM groups g JOIN messages m ON g.groupID = m.groupID
 							JOIN group_members gm ON gm.groupID = g.groupID
 							WHERE gm.userID = ?
-							ORDER BY m.sentAt DESC
 							)
+							ORDER BY sentAt DESC
 						`;
 
 			console.log('user id is: ', userID);

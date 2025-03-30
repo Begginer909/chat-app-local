@@ -32,7 +32,7 @@ router.post('/getMessages', (req, res) => {
 	let params;
 	if (chatType === 'private') {
 		query = `
-			SELECT u.userID, p.senderID, p.receiverID, u.username, p.message, p.sentAt
+			SELECT u.userID, p.senderID, p.receiverID, u.username, p.message, p.sentAt, p.messageType, p.fileUrl
 			FROM private p
 			JOIN users u ON u.userID = p.senderID
 			WHERE (p.senderID = ? AND p.receiverID = ?) OR (p.senderID = ? AND p.receiverID = ?)
@@ -41,7 +41,7 @@ router.post('/getMessages', (req, res) => {
 		params = [userID, otherUserID, otherUserID, userID];
 	} else if (chatType === 'group') {
 		query = `
-			SELECT u.userID, u.username, m.senderID, m.message, m.sentAt
+			SELECT u.userID, u.username, m.senderID, m.message, m.sentAt, m.messageType, m.fileUrl
 			FROM messages m
 			JOIN users u ON u.userID = m.senderID
 			WHERE m.groupID = ?
