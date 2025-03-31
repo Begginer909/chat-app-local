@@ -83,11 +83,12 @@ router.post('/createGroup', async (req, res) => {
 
 	if (!groupName || members.length === 0) return res.status(400).json({ message: 'Invalid data' });
 	try {
-		const query = `INSERT INTO groups (groupName) VALUES (?)`;
+		const query = 'INSERT INTO groups (groupName) VALUES (?)';
 
 		db.query(query, [groupName], (err, result) => {
 			if (err) {
-				console.error('Something went wrong', err);
+				console.error('Error inserting group:', err);
+				return res.status(500).json({ message: 'Error creating group' });
 			}
 
 			const groupID = result.insertId;
@@ -108,7 +109,7 @@ router.post('/createGroup', async (req, res) => {
 						return res.status(500).json({ message: 'Error adding members' });
 					}
 
-					const systemMessage = `"${groupName}" was created`;
+					const systemMessage = `${groupName} was created`;
 					const insertMessage = `INSERT INTO messages (groupID, senderID, message, messageType)
 										VALUES (?, ?, ?, ?)`;
 
@@ -117,7 +118,8 @@ router.post('/createGroup', async (req, res) => {
 							console.error('Error inserting system message', err);
 							return res.status(500).json({ message: 'Error adding system message' });
 						}
-						res.json({ message: 'Group created successfully', groupID });
+						console.log(groupID);
+						return res.json({ message: 'Group created successfully', groupID });
 					});
 				});
 			} else {

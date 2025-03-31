@@ -340,7 +340,8 @@ function setupChat(data) {
 	document.getElementById('groupForm').addEventListener('submit', async (e) => {
 		e.preventDefault();
 
-		const groupName = document.getElementById('groupName').value;
+		const groupNameInput = document.getElementById('groupName');
+		const groupName = groupNameInput.value;
 		const members = Array.from(document.querySelectorAll('#groupMembers input[type="checkbox"]:checked')).map((checkbox) => checkbox.value);
 		const creatorID = userId;
 		console.log(creatorID);
@@ -359,9 +360,14 @@ function setupChat(data) {
 
 			if (!response.ok) throw new Error('Failed to create group');
 
+			const data = await response.json();
+
 			alert('Group created successfully!');
 
+			groupNameInput.value = '';
+
 			fetchUsers();
+			socket.emit('recentChat', userId);
 			const modal = bootstrap.Modal.getInstance(document.getElementById('groupModal'));
 			modal.hide();
 		} catch (error) {
