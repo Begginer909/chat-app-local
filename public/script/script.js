@@ -31,14 +31,33 @@ function setupChat(data) {
 
 	fullname.textContent = `${data.username}`;
 
-	// Receive new messages
-	socket.on('newMessage', ({ senderID, receiverID, username, message, messageType, fileUrl, groupID, chatType }) => {
-		if (chatType === 'private' && receiverID === currentChatUserID) {
-			displayMessage({ senderID, receiverID, username, message, messageType, fileUrl });
-		} else if (chatType === 'group' && groupID === currentChatGroupID) {
-			displayMessage({ senderID, username, message, messageType, fileUrl, groupID });
-		}
+	socket.on('connect', () => {
+		socket.emit('register', userId);
+		console.log(`Reconnected! Registering userID ${userId} with new socket ID.`);
 	});
+
+	// Receive new messages
+	socket.on('newMessage', handleNewMessage);
+
+	function handleNewMessage({ senderID, receiverID, username, message, messageType, fileUrl, groupID, chatType }) {
+		console.log(`Received message: chatType=${chatType}, from=${senderID}, to=${receiverID}, group=${groupID}`);
+
+		if (chatType === 'private') {
+			// For private messages, check if this chat is currently active
+			// Important: We need to check if either the sender or receiver matches our current chat
+			if (senderID === currentChatUserID || (receiverID === currentChatUserID && senderID === userId)) {
+				displayMessage({ senderID, receiverID, username, message, messageType, fileUrl });
+			}
+		} else if (chatType === 'group') {
+			// For group messages, check if this is for the current group
+			if (groupID === currentChatGroupID) {
+				displayMessage({ senderID, username, message, messageType, fileUrl, groupID });
+			}
+		}
+
+		// Always refresh recent chats when receiving any message
+		socket.emit('recentChat', userId);
+	}
 
 	function sendMessage(message, file) {
 		if (!message.trim() && !file) return;
@@ -87,8 +106,9 @@ function setupChat(data) {
 			.then((data) => {
 				console.log('Upload response:', data);
 				payload.fileUrl = data.fileUrl || null;
-
 				console.log(`payload: ${payload}`);
+				socket.emit('sendmessage', payload);
+				socket.emit('recentChat', userId);
 			})
 			.catch((err) => console.error('Upload error:', err));
 	}
@@ -246,7 +266,7 @@ function setupChat(data) {
 		messages.innerHTML = '';
 
 		// Remove previous 'newMessage' listener before setting a new one
-		socket.off('newMessage');
+		//socket.off('newMessage');
 
 		const payload = {
 			userID: userId,
@@ -273,16 +293,6 @@ function setupChat(data) {
 			.catch((error) => {
 				console.error('Error fetching chat history:', error);
 			});
-
-		socket.on('newMessage', ({ senderID, receiverID, username, message, messageType, fileUrl, groupID }) => {
-			if (chatType === 'private' && receiverID === currentChatUserID) {
-				displayMessage({ senderID, receiverID, username, message, messageType, fileUrl });
-				console.log('Runnings' + fileUrl);
-			} else if (chatType === 'group' && groupID === currentChatGroupID) {
-				displayMessage({ senderID, receiverID, username, message, messageType, fileUrl });
-				console.log('Running' + fileUrl);
-			}
-		});
 	}
 
 	socket.emit('recentChat', userId);
@@ -303,10 +313,23 @@ function setupChat(data) {
 			selectElement.innerHTML = ''; // Clear previous options
 
 			users.forEach((user) => {
-				const option = document.createElement('option');
-				option.value = user.userID;
-				option.textContent = `${user.firstname} ${user.lastname}`;
-				selectElement.appendChild(option);
+				const div = document.createElement('div');
+				div.classList.add('form-check');
+
+				const checkbox = document.createElement('input');
+				checkbox.type = 'checkbox';
+				checkbox.value = user.userID;
+				checkbox.id = `user-${user.userID}`;
+				checkbox.classList.add('form-check-input');
+
+				const label = document.createElement('label');
+				label.htmlFor = `user-${user.userID}`;
+				label.classList.add('form-check-label');
+				label.textContent = `${user.firstname} ${user.lastname}`;
+
+				div.appendChild(checkbox);
+				div.appendChild(label);
+				selectElement.appendChild(div);
 			});
 		} catch (error) {
 			console.error('Error loading users:', error);
@@ -318,9 +341,8 @@ function setupChat(data) {
 		e.preventDefault();
 
 		const groupName = document.getElementById('groupName').value;
-		const members = Array.from(document.getElementById('groupMembers').selectedOptions).map((opt) => opt.value);
+		const members = Array.from(document.querySelectorAll('#groupMembers input[type="checkbox"]:checked')).map((checkbox) => checkbox.value);
 		const creatorID = userId;
-
 		console.log(creatorID);
 
 		if (!groupName.trim() || members.length === 0) {
@@ -338,8 +360,10 @@ function setupChat(data) {
 			if (!response.ok) throw new Error('Failed to create group');
 
 			alert('Group created successfully!');
-			document.getElementById('groupForm').reset();
-			fetchUsers(); // Refresh user list
+
+			fetchUsers();
+			const modal = bootstrap.Modal.getInstance(document.getElementById('groupModal'));
+			modal.hide();
 		} catch (error) {
 			console.error('Error creating group:', error);
 		}

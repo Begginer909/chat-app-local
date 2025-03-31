@@ -112,9 +112,11 @@
                   <input type="text" class="form-control" id="groupName" required>
                 </div>
                 <div class="mb-3">
-                  <label for="groupMembers" class="form-label">Add Members</label>
-                  <select class="form-select" id="groupMembers" multiple>
-                  </select>
+                    <label for="groupMembers" class="form-label">Search Members</label>
+                    <div id="groupMembers" class="form-check"> <!-- Container for checkboxes -->
+                        <p class="text-muted">Select members to add</p>
+                    </div>
+                  </div>
                   <small class="text-muted">Hold Ctrl (Cmd on Mac) to select multiple users.</small>
                 </div>
                 <button type="submit" class="btn btn-success">Create Group</button>
@@ -122,7 +124,7 @@
             </div>
           </div>
         </div>
-      </div>
+    </div>
 
     <script src="http://localhost:3000/socket.io/socket.io.js"></script>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
