@@ -12,6 +12,7 @@ export function initializeSocket(io) {
 			console.log(`User ${userID} registered with socket ${socket.id}`);
 		});
 
+		//Query to show recent chat for users and receiver
 		const recentChatQuery = `
 							(SELECT 
 								u.userID, 

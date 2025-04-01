@@ -39,19 +39,22 @@ function setupChat(data) {
 	// Receive new messages
 	socket.on('newMessage', handleNewMessage);
 
+	//Function to process the incomming messages to show for both sender and receiver
 	function handleNewMessage({ senderID, receiverID, username, message, messageType, fileUrl, groupID, chatType }) {
 		console.log(`Received message: chatType=${chatType}, from=${senderID}, to=${receiverID}, group=${groupID}`);
 
+		//Check if the chat type to determine what to display
 		if (chatType === 'private') {
 			// For private messages, check if this chat is currently active
-			// Important: We need to check if either the sender or receiver matches our current chat
 			if (senderID === currentChatUserID || (receiverID === currentChatUserID && senderID === userId)) {
 				displayMessage({ senderID, receiverID, username, message, messageType, fileUrl });
+				console.log(`Sender: ${senderID} currentChatUserID ${currentChatUserID} receiverID ${receiverID} userId ${userId}`);
 			}
 		} else if (chatType === 'group') {
 			// For group messages, check if this is for the current group
 			if (groupID === currentChatGroupID) {
 				displayMessage({ senderID, username, message, messageType, fileUrl, groupID });
+				console.log(`groupID: ${groupID} currentchatGroupID ${currentChatGroupID}`);
 			}
 		}
 
@@ -206,14 +209,13 @@ function setupChat(data) {
 		const chatlist = document.getElementById('recentchats');
 
 		chatlist.innerHTML = ''; // Clear previous list
-
 		const addedUsers = new Set(); // Track unique users
 
-		chats.forEach((chat) => {
+		//Create a list of button for the recent users
+		chats.forEach((chat, index) => {
 			let chatNameUsers;
 			if (!addedUsers.has(chat.userID)) {
-				// Prevent duplicates
-				addedUsers.add(chat.userID);
+				addedUsers.add(chat.userID); // Prevent duplicates
 
 				const chatItem = document.createElement('div');
 				chatItem.classList.add('chat-item');
@@ -265,9 +267,7 @@ function setupChat(data) {
 
 		messages.innerHTML = '';
 
-		// Remove previous 'newMessage' listener before setting a new one
-		//socket.off('newMessage');
-
+		//Data that needed to be sent in getMessages API to satisfy the condition
 		const payload = {
 			userID: userId,
 			otherUserID: chatType === 'private' ? currentChatUserID : null,
@@ -275,6 +275,7 @@ function setupChat(data) {
 			chatType,
 		};
 
+		//Call the API using fetch with a method POST
 		fetch(`http://localhost:3000/search/getMessages`, {
 			method: 'POST',
 			headers: {
@@ -295,6 +296,7 @@ function setupChat(data) {
 			});
 	}
 
+	console.log('It start to run this socket.emit');
 	socket.emit('recentChat', userId);
 
 	socket.on('recentChatResult', (data) => {
@@ -302,6 +304,7 @@ function setupChat(data) {
 		recent(data);
 	});
 
+	//Able to show the users when creating a group
 	async function fetchUsers() {
 		try {
 			const response = await fetch(`http://localhost:3000/search/users?userId=${userId}`);
