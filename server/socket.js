@@ -196,13 +196,6 @@ export function initializeSocket(io) {
 											//If member is online. mark as delivered
 											const memberSocket = users.get(member.userID);
 											if (memberSocket) {
-												// Check if the member has this chat active
-												const memberActiveRoom = io.sockets.adapter.rooms.get(`active_group_${groupID}`);
-												const isMemberActive = memberActiveRoom && [...memberActiveRoom].includes(memberSocket);
-
-												// Set status based on whether member has chat active
-												const status = isMemberActive ? 'seen' : 'delivered';
-
 												db.query('UPDATE group_message_receipts SET status = ?, statusChangedAt = NOW() WHERE messageID = ? AND userID = ?', ['delivered', messageID, member.userID], (err) => {
 													if (err) console.error('Error updating group receipt status', err);
 													else {
@@ -210,7 +203,7 @@ export function initializeSocket(io) {
 														if (senderSocket) {
 															io.to(senderSocket).emit('messageStatus', {
 																messageID,
-																status,
+																status: 'delivered',
 																userID: member.userID,
 																groupID,
 															});
@@ -330,72 +323,16 @@ export function initializeSocket(io) {
 
 		socket.on('activateChat', ({ userID, chatType, groupID, otherUserID }) => {
 			// Leave all active chat rooms
-			Object.keys(socket.rooms).forEach((room) => {
+			for (const room of socket.rooms) {
 				if (room.startsWith('active_')) {
 					socket.leave(room);
 				}
-			});
+			}
 
 			// Join new active chat room
 			if (chatType === 'group' && groupID) {
 				socket.join(`active_group_${groupID}`);
 				console.log(`User ${userID} activated group chat ${groupID}`);
-
-				// Mark all unread messages in this group as seen
-				db.query(
-					'UPDATE group_message_receipts gr JOIN messages m ON gr.messageID = m.messageID ' +
-						'SET gr.status = ?, gr.statusChangedAt = NOW() ' +
-						'WHERE m.groupID = ? AND gr.userID = ? AND gr.status IN (?, ?)',
-					['seen', groupID, userID, 'sent', 'delivered'],
-					(err) => {
-						if (err) {
-							console.error('Error updating group message status to seen:', err);
-							return;
-						}
-
-						// Get all messages that were updated to seen
-						db.query(
-							'SELECT gr.messageID, m.senderID FROM group_message_receipts gr ' +
-								'JOIN messages m ON gr.messageID = m.messageID ' +
-								'WHERE m.groupID = ? AND gr.userID = ? AND gr.status = ? ' +
-								'AND gr.statusChangedAt >= DATE_SUB(NOW(), INTERVAL 5 SECOND)',
-							[groupID, userID, 'seen'],
-							(err, results) => {
-								if (err || !results.length) return;
-
-								// Get current user's username
-								db.query('SELECT username FROM users WHERE userID = ?', [userID], (err, userResults) => {
-									if (err || !userResults.length) return;
-
-									const username = userResults[0].username;
-
-									// Notify senders about seen status
-									results.forEach(({ messageID, senderID }) => {
-										const senderSocketId = users.get(senderID);
-										if (senderSocketId) {
-											io.to(senderSocketId).emit('messageStatus', {
-												messageID,
-												status: 'seen',
-												userID,
-												username,
-												groupID,
-											});
-										}
-
-										// Also notify group members
-										io.to(`group_${groupID}`).emit('messageStatus', {
-											messageID,
-											status: 'seen',
-											userID,
-											username,
-											groupID,
-										});
-									});
-								});
-							}
-						);
-					}
-				);
 			} else if (chatType === 'private' && otherUserID) {
 				socket.join(`active_private_${userID}_${otherUserID}`);
 				console.log(`User ${userID} activated private chat with ${otherUserID}`);

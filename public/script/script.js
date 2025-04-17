@@ -56,18 +56,18 @@ function setupChat(data) {
 			if (groupID === currentChatGroupID) {
 				displayMessage({ senderID, username, message, messageType, fileUrl, groupID, messageID });
 				//console.log(`groupID: ${groupID} currentchatGroupID ${currentChatGroupID}`);
-			}
 
-			if (senderID !== userId && messageID) {
-				// Emit seen status for the message right away
-				socket.emit('seenMessage', {
-					messageID: messageID,
-					senderID: senderID,
-					userID: userId,
-					username: fullname.textContent,
-					chatType: 'group',
-					groupID: currentChatGroupID,
-				});
+				// Only mark as seen if this is an incoming message AND the group chat is active
+				if (senderID !== userId && messageID && groupID === currentChatGroupID) {
+					socket.emit('seenMessage', {
+						messageID: messageID,
+						senderID: senderID,
+						userID: userId,
+						username: fullname.textContent,
+						chatType: 'group',
+						groupID: currentChatGroupID,
+					});
+				}
 			}
 		}
 
@@ -88,6 +88,7 @@ function setupChat(data) {
 
 		// Update the status indicator
 		const statusIndicator = messageElement.querySelector('.message-status');
+
 		if (!statusIndicator) {
 			const statusContainer = messageElement.querySelector('.message-status-container');
 			if (statusContainer) {
@@ -117,22 +118,39 @@ function setupChat(data) {
 
 			// For group chats, show who has seen the message
 			if (currentChatGroupID) {
-				// This is a group message
-				const seenByText = 'Seen by ';
-				const currentNames = statusIndicator.title.replace(seenByText, '');
-				const namesArray = currentNames ? currentNames.split(', ') : [];
+				const currentTitle = statusIndicator.title || '';
+				// Parse existing seen users if any
+				let seenUsers = [];
 
-				// Add the username if it's not already in the list
-				if (username && !namesArray.includes(username) && userID !== userId) {
-					namesArray.push(username);
-					statusIndicator.title = seenByText + namesArray.join(', ');
-				} else if (seenByOthers) {
-					statusIndicator.title = seenByText + seenByOthers;
-				} else if (!statusIndicator.title.startsWith(seenByText)) {
-					statusIndicator.title = seenByText;
+				if (currentTitle.startsWith('Seen by')) {
+					seenUsers = currentTitle
+						.replace('Seen by ', '')
+						.split(', ')
+						.filter((name) => name.trim() !== '');
+				}
+
+				// Only add username if not already in the list and not the current user
+				if (username && !seenUsers.includes(username) && userID !== userId) {
+					seenUsers.push(username);
+				}
+
+				// If we have seenByOthers from the database, use that instead
+				if (seenByOthers && seenByOthers.trim()) {
+					// This may already include duplicates, so we'll parse and deduplicate
+					const otherUsers = seenByOthers.split(', ').filter((name) => name.trim() !== '');
+
+					// Create a Set for deduplication
+					const uniqueUsers = new Set([...seenUsers, ...otherUsers]);
+					seenUsers = Array.from(uniqueUsers);
+				}
+
+				if (seenUsers.length > 0) {
+					statusIndicator.title = `Seen by ${seenUsers.join(', ')}`;
+				} else {
+					statusIndicator.title = 'Seen';
 				}
 			} else {
-				// This is a private message seen by the receiver
+				// Private message
 				statusIndicator.title = 'Seen';
 			}
 		}
@@ -297,20 +315,6 @@ function setupChat(data) {
 			messageWrapper.appendChild(messageElement);
 		}
 
-		// Mark as seen if this is an incoming message and hasn't been explicitly marked as seen above
-		if (msg.senderID !== userId && msg.messageID && !(msg.groupID === currentChatGroupID)) {
-			// Don't emit again for group messages
-			// Emit seen status for the message
-			socket.emit('seenMessage', {
-				messageID: msg.messageID,
-				senderID: msg.senderID,
-				userID: userId,
-				username: fullname.textContent,
-				chatType: currentChatGroupID ? 'group' : 'private',
-				groupID: currentChatGroupID,
-			});
-		}
-
 		// Append message to the container
 		statusContainer.appendChild(statusIndicator);
 		messageWrapper.appendChild(messageElement);
@@ -426,6 +430,18 @@ function setupChat(data) {
 						username: msg.username,
 						seenByOthers: msg.seenByUsers,
 					});
+
+					// If this is an unread message from someone else, mark it as seen
+					if (msg.senderID !== userId && msg.status !== 'seen' && msg.messageID) {
+						socket.emit('seenMessage', {
+							messageID: msg.messageID,
+							senderID: msg.senderID,
+							userID: userId,
+							username: fullname.textContent,
+							chatType: chatType,
+							groupID: chatType === 'group' ? currentChatGroupID : null,
+						});
+					}
 				});
 			})
 			.catch((error) => {
