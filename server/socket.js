@@ -3,8 +3,6 @@ import db from './config/config.js';
 const users = new Map(); // Stores userID -> socketID
 
 export function initializeSocket(io) {
-	let senderSocket;
-	let receiverSocket;
 	io.on('connection', (socket) => {
 		console.log('A user connected', socket.id);
 
@@ -60,6 +58,10 @@ export function initializeSocket(io) {
 						`;
 
 		socket.on('sendmessage', ({ senderID, receiverID, message, messageType, fileUrl, groupID, chatType, messageID }) => {
+			// Always get fresh socket references
+			const senderSocket = () => users.get(senderID);
+			const receiverSocket = () => users.get(receiverID);
+
 			db.query('SELECT username FROM users WHERE userID = ?', [senderID], (err, results) => {
 				if (err) {
 					console.error('Database error:', err);
@@ -74,8 +76,6 @@ export function initializeSocket(io) {
 				const username = results[0].username;
 				let query;
 				let params;
-				senderSocket = users.get(senderID);
-				receiverSocket = users.get(receiverID);
 
 				if (chatType === 'private') {
 					query = 'INSERT INTO private (senderID, receiverID, message, messageType, fileUrl) VALUES (?, ?, ?, ?, ?)';
@@ -90,47 +90,63 @@ export function initializeSocket(io) {
 									if (err) {
 										console.error('Error creating receipt record: ', err);
 									}
-								});
 
-								console.log('Emitting newMessage:', { senderID, receiverID, username, message, messageType, fileUrl, groupID, chatType, messageID });
+									const messageData = {
+										senderID,
+										receiverID,
+										username,
+										message,
+										messageType,
+										fileUrl,
+										groupID,
+										chatType,
+										messageID,
+									};
 
-								// Update recent chat for sender
-								db.query(recentChatQuery, [senderID, senderID, senderID, senderID], (err, senderResult) => {
-									if (!err && senderSocket) {
-										io.to(senderSocket).emit('recentChatResult', senderResult);
-										io.to(`private_${senderID}`).emit('newMessage', { senderID, receiverID, username, message, messageType, fileUrl, groupID, chatType });
-									}
-								});
+									// Always emit to sender's room
+									io.to(`private_${senderID}`).emit('newMessage', messageData);
 
-								// Update for receiver
-								db.query(recentChatQuery, [receiverID, receiverID, receiverID, receiverID], (err, receiverResult) => {
-									if (!err && receiverSocket) {
-										io.to(receiverSocket).emit('recentChatResult', receiverResult);
-										io.to(`private_${receiverID}`).emit('newMessage', { senderID, receiverID, username, message, messageType, fileUrl, groupID, chatType, messageID });
+									console.log('Emitting newMessage:', { senderID, receiverID, username, message, messageType, fileUrl, groupID, chatType, messageID });
 
-										db.query('UPDATE private_message_receipts SET status = ?, statusChangedAt = NOW() WHERE messageID = ?', ['delivered', messageID], (err) => {
-											if (err) {
-												console.error('Error updating receipt status');
-												return;
-											}
-											if (senderSocket) {
-												io.to(`private_${senderID}`).emit('messageStatus', {
-													messageID,
-													status: 'delivered',
-													receiverID,
+									// Update recent chat for sender
+									db.query(recentChatQuery, [senderID, senderID, senderID, senderID], (err, senderResult) => {
+										if (!err && senderSocket) {
+											io.to(senderSocket).emit('recentChatResult', senderResult);
+										}
+									});
+
+									const receiverSocketId = receiverSocket();
+
+									if (receiverSocketId) {
+										// Update for receiver
+										db.query(recentChatQuery, [receiverID, receiverID, receiverID, receiverID], (err, receiverResult) => {
+											if (!err && receiverSocketId) {
+												// Send message to receiver
+												io.to(`private_${receiverID}`).emit('newMessage', messageData);
+												io.to(`private_${receiverID}`).emit('recentChatResult', receiverResult);
+
+												db.query('UPDATE private_message_receipts SET status = ?, statusChangedAt = NOW() WHERE messageID = ?', ['delivered', messageID], (err) => {
+													if (err) {
+														console.error('Error updating receipt status');
+														return;
+													}
+
+													// Notify sender that message was delivered
+													io.to(`private_${senderID}`).emit('messageStatus', {
+														messageID,
+														status: 'delivered',
+														receiverID,
+													});
+
+													console.log(`Message ${messageID} marked as delivered to ${receiverID}`);
 												});
-												console.log('Working here');
-												console.log(senderSocket);
-												console.log('About to emit messageStatus with data:', {
-													messageID,
-													status: 'delivered',
-													receiverID,
-												});
-												console.log('Sender socket ID:', senderSocket);
 											}
 										});
+									} else {
+										console.log(`Receiver ${receiverID} is offline, message remains as 'sent'`);
 									}
 								});
+
 								//console.log(` scokeesease: ${socket.id}`);
 							} else {
 								console.error('Error inserting message:', err);
@@ -138,7 +154,22 @@ export function initializeSocket(io) {
 						});
 					} else {
 						// For file messages, just broadcast to all clients since DB insert was done in the upload endpoint
-						io.emit('newMessage', { senderID, receiverID, username, message, messageType, fileUrl, groupID, chatType, messageID });
+						//io.emit('newMessage', { senderID, receiverID, username, message, messageType, fileUrl, groupID, chatType, messageID });
+						// For file messages, broadcast to relevant users
+						const messageData = {
+							senderID,
+							receiverID,
+							username,
+							message,
+							messageType,
+							fileUrl,
+							groupID,
+							chatType,
+							messageID,
+						};
+
+						io.to(`private_${senderID}`).emit('newMessage', messageData);
+						io.to(`private_${receiverID}`).emit('newMessage', messageData);
 					}
 				} else if (chatType === 'group') {
 					query = 'INSERT INTO messages (senderID, message, messageType, fileUrl, groupID) VALUES (?, ?, ?, ?, ?)';
@@ -165,6 +196,13 @@ export function initializeSocket(io) {
 											//If member is online. mark as delivered
 											const memberSocket = users.get(member.userID);
 											if (memberSocket) {
+												// Check if the member has this chat active
+												const memberActiveRoom = io.sockets.adapter.rooms.get(`active_group_${groupID}`);
+												const isMemberActive = memberActiveRoom && [...memberActiveRoom].includes(memberSocket);
+
+												// Set status based on whether member has chat active
+												const status = isMemberActive ? 'seen' : 'delivered';
+
 												db.query('UPDATE group_message_receipts SET status = ?, statusChangedAt = NOW() WHERE messageID = ? AND userID = ?', ['delivered', messageID, member.userID], (err) => {
 													if (err) console.error('Error updating group receipt status', err);
 													else {
@@ -172,7 +210,7 @@ export function initializeSocket(io) {
 														if (senderSocket) {
 															io.to(senderSocket).emit('messageStatus', {
 																messageID,
-																status: 'delivered',
+																status,
 																userID: member.userID,
 																groupID,
 															});
@@ -183,17 +221,17 @@ export function initializeSocket(io) {
 											}
 										});
 									});
-								});
-								// Emit new message to sender and all group members
-								io.to(`group_${groupID}`).emit('newMessage', {
-									senderID,
-									username,
-									message,
-									messageType,
-									fileUrl,
-									chatType,
-									groupID,
-									messageID,
+									// Emit new message to sender and all group members
+									io.to(`group_${groupID}`).emit('newMessage', {
+										senderID,
+										username,
+										message,
+										messageType,
+										fileUrl,
+										chatType,
+										groupID,
+										messageID,
+									});
 								});
 							} else {
 								console.error('Error inserting message:', err);
@@ -249,8 +287,6 @@ export function initializeSocket(io) {
 								senderID,
 							});
 						}
-
-						console.log(`${senderSocket} --- ${receiverSocket}`);
 					}
 				});
 			} else if (chatType === 'group') {
@@ -289,6 +325,82 @@ export function initializeSocket(io) {
 						});
 					}
 				});
+			}
+		});
+
+		socket.on('activateChat', ({ userID, chatType, groupID, otherUserID }) => {
+			// Leave all active chat rooms
+			Object.keys(socket.rooms).forEach((room) => {
+				if (room.startsWith('active_')) {
+					socket.leave(room);
+				}
+			});
+
+			// Join new active chat room
+			if (chatType === 'group' && groupID) {
+				socket.join(`active_group_${groupID}`);
+				console.log(`User ${userID} activated group chat ${groupID}`);
+
+				// Mark all unread messages in this group as seen
+				db.query(
+					'UPDATE group_message_receipts gr JOIN messages m ON gr.messageID = m.messageID ' +
+						'SET gr.status = ?, gr.statusChangedAt = NOW() ' +
+						'WHERE m.groupID = ? AND gr.userID = ? AND gr.status IN (?, ?)',
+					['seen', groupID, userID, 'sent', 'delivered'],
+					(err) => {
+						if (err) {
+							console.error('Error updating group message status to seen:', err);
+							return;
+						}
+
+						// Get all messages that were updated to seen
+						db.query(
+							'SELECT gr.messageID, m.senderID FROM group_message_receipts gr ' +
+								'JOIN messages m ON gr.messageID = m.messageID ' +
+								'WHERE m.groupID = ? AND gr.userID = ? AND gr.status = ? ' +
+								'AND gr.statusChangedAt >= DATE_SUB(NOW(), INTERVAL 5 SECOND)',
+							[groupID, userID, 'seen'],
+							(err, results) => {
+								if (err || !results.length) return;
+
+								// Get current user's username
+								db.query('SELECT username FROM users WHERE userID = ?', [userID], (err, userResults) => {
+									if (err || !userResults.length) return;
+
+									const username = userResults[0].username;
+
+									// Notify senders about seen status
+									results.forEach(({ messageID, senderID }) => {
+										const senderSocketId = users.get(senderID);
+										if (senderSocketId) {
+											io.to(senderSocketId).emit('messageStatus', {
+												messageID,
+												status: 'seen',
+												userID,
+												username,
+												groupID,
+											});
+										}
+
+										// Also notify group members
+										io.to(`group_${groupID}`).emit('messageStatus', {
+											messageID,
+											status: 'seen',
+											userID,
+											username,
+											groupID,
+										});
+									});
+								});
+							}
+						);
+					}
+				);
+			} else if (chatType === 'private' && otherUserID) {
+				socket.join(`active_private_${userID}_${otherUserID}`);
+				console.log(`User ${userID} activated private chat with ${otherUserID}`);
+
+				// Similar logic for private chats if needed
 			}
 		});
 

@@ -57,6 +57,18 @@ function setupChat(data) {
 				displayMessage({ senderID, username, message, messageType, fileUrl, groupID, messageID });
 				//console.log(`groupID: ${groupID} currentchatGroupID ${currentChatGroupID}`);
 			}
+
+			if (senderID !== userId && messageID) {
+				// Emit seen status for the message right away
+				socket.emit('seenMessage', {
+					messageID: messageID,
+					senderID: senderID,
+					userID: userId,
+					username: fullname.textContent,
+					chatType: 'group',
+					groupID: currentChatGroupID,
+				});
+			}
 		}
 
 		// Always refresh recent chats when receiving any message
@@ -66,7 +78,7 @@ function setupChat(data) {
 	// Check Status of users
 	socket.on('messageStatus', handleMessageStatus);
 
-	function handleMessageStatus({ messageID, status, userID, username, seenByOthers, groupID }) {
+	function handleMessageStatus({ messageID, status, userID, username, seenByOthers }) {
 		console.log(`${messageID} ${status}`);
 		// Find the message element by messageID
 		const messageElement = document.querySelector(`[data-message-id="${messageID}"]`);
@@ -95,25 +107,33 @@ function setupChat(data) {
 		if (status === 'sent') {
 			statusIndicator.innerHTML = '<i class="fas fa-check"></i>';
 			statusIndicator.title = 'Sent';
+			console.log('here');
 		} else if (status === 'delivered') {
 			statusIndicator.innerHTML = '<i class="fas fa-check-double"></i>';
 			statusIndicator.title = 'Delivered';
+			console.log('hair');
 		} else if (status === 'seen') {
 			statusIndicator.innerHTML = '<i class="fas fa-check-double seen-icon"></i>';
 
-			console.log(userId);
-			//For group chats, show who has seen the message
-			if (currentChatGroupID && userID && userID !== userId) {
-				// Check if this username is already in the title
-				const currentTitle = statusIndicator.title || '';
-				const seenByText = currentTitle.startsWith('Seen by') ? currentTitle : 'Seen by ';
+			// For group chats, show who has seen the message
+			if (currentChatGroupID) {
+				// This is a group message
+				const seenByText = 'Seen by ';
+				const currentNames = statusIndicator.title.replace(seenByText, '');
+				const namesArray = currentNames ? currentNames.split(', ') : [];
 
-				console.log(`Seen By: ${seenByOthers}`);
-				statusIndicator.title = `Seen By ${seenByOthers}`;
-			} else if (userID && !currentChatGroupID) {
-				statusIndicator.title = `Seen`;
+				// Add the username if it's not already in the list
+				if (username && !namesArray.includes(username) && userID !== userId) {
+					namesArray.push(username);
+					statusIndicator.title = seenByText + namesArray.join(', ');
+				} else if (seenByOthers) {
+					statusIndicator.title = seenByText + seenByOthers;
+				} else if (!statusIndicator.title.startsWith(seenByText)) {
+					statusIndicator.title = seenByText;
+				}
 			} else {
-				statusIndicator.title = `Seen By ${seenByOthers}`;
+				// This is a private message seen by the receiver
+				statusIndicator.title = 'Seen';
 			}
 		}
 	}
@@ -277,8 +297,9 @@ function setupChat(data) {
 			messageWrapper.appendChild(messageElement);
 		}
 
-		// Mark as seen if this is an incoming message
-		if (msg.senderID !== userId && msg.messageID) {
+		// Mark as seen if this is an incoming message and hasn't been explicitly marked as seen above
+		if (msg.senderID !== userId && msg.messageID && !(msg.groupID === currentChatGroupID)) {
+			// Don't emit again for group messages
 			// Emit seen status for the message
 			socket.emit('seenMessage', {
 				messageID: msg.messageID,
@@ -360,6 +381,13 @@ function setupChat(data) {
 			currentChatGroupID = null; // Reset group chat ID
 		}
 
+		socket.emit('activateChat', {
+			userID: userId,
+			chatType,
+			groupID: chatType === 'group' ? otherUserID : null,
+			otherUserID: chatType === 'private' ? otherUserID : null,
+		});
+
 		//(`current: ${currentChatUserID}`);
 
 		messages.innerHTML = '';
@@ -394,7 +422,6 @@ function setupChat(data) {
 					handleMessageStatus({
 						messageID: msg.messageID,
 						status: msg.status,
-						receiverID: msg.receiverID,
 						userID: msg.userID,
 						username: msg.username,
 						seenByOthers: msg.seenByUsers,
