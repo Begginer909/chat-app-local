@@ -31,21 +31,60 @@ router.post('/getMessages', (req, res) => {
 	let query;
 	let params;
 	if (chatType === 'private') {
+		// For private chats: include specific receipt status for current user
 		query = `
-			SELECT u.userID, p.senderID, p.receiverID, u.username, p.message, p.sentAt, p.messageType, p.fileUrl
-			FROM private p
-			JOIN users u ON u.userID = p.senderID
-			WHERE (p.senderID = ? AND p.receiverID = ?) OR (p.senderID = ? AND p.receiverID = ?)
-			ORDER BY p.sentAt ASC`;
+            SELECT 
+                u.userID, 
+                p.messageID, 
+                p.senderID, 
+                p.receiverID, 
+                u.username, 
+                p.message, 
+                p.sentAt, 
+                p.messageType, 
+                p.fileUrl,
+                pr.status,
+                (SELECT MAX(pr2.statusChangedAt) FROM private_message_receipts pr2 
+                 WHERE pr2.messageID = p.messageID AND pr2.status = 'seen') AS seenAt,
+                (SELECT username FROM users WHERE userID = p.receiverID) AS seenByUsername
+            FROM private p
+            JOIN users u ON u.userID = p.senderID
+            LEFT JOIN private_message_receipts pr ON pr.messageID = p.messageID 
+                AND ((p.senderID = ? AND p.receiverID = ?) OR (p.receiverID = ? AND p.receiverID = ?))
+            WHERE (p.senderID = ? AND p.receiverID = ?) OR (p.senderID = ? AND p.receiverID = ?)
+            ORDER BY p.sentAt ASC`;
 
-		params = [userID, otherUserID, otherUserID, userID];
+		params = [userID, otherUserID, userID, otherUserID, userID, otherUserID, otherUserID, userID];
 	} else if (chatType === 'group') {
 		query = `
-			SELECT u.userID, u.username, m.senderID, m.message, m.sentAt, m.messageType, m.fileUrl
-			FROM messages m
-			JOIN users u ON u.userID = m.senderID
-			WHERE m.groupID = ?
-			ORDER BY m.sentAt ASC`;
+		  SELECT 
+			u.userID, 
+			m.messageID,
+			m.senderID, 
+			g.groupID as receiverID,
+			u.username, 
+			m.message, 
+			m.sentAt, 
+			m.messageType, 
+			m.fileUrl,
+			(SELECT 
+				CASE 
+					WHEN NOT EXISTS (SELECT 1 FROM group_message_receipts WHERE messageID = m.messageID AND userID != m.senderID) THEN 'sent'
+					WHEN NOT EXISTS (SELECT 1 FROM group_message_receipts WHERE messageID = m.messageID AND status = 'seen' AND userID != m.senderID) THEN 'delivered'
+					ELSE 'seen' 
+				END
+			) AS status,
+			(SELECT GROUP_CONCAT(u2.username SEPARATOR ', ') 
+			 FROM group_message_receipts gmr
+			 JOIN users u2 ON u2.userID = gmr.userID
+			 WHERE gmr.messageID = m.messageID 
+			 AND gmr.status = 'seen'
+			 AND gmr.userID != m.senderID) AS seenByUsers
+		  FROM messages m
+		  JOIN users u ON u.userID = m.senderID
+		  JOIN groups g ON g.groupID = m.groupID
+		  WHERE m.groupID = ?
+		  ORDER BY m.sentAt ASC`;
 
 		params = [groupID];
 	}

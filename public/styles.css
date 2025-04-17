@@ -294,6 +294,21 @@ a {
     transition: background-color 0.3s ease, color 0.3s ease;
 }
 
+.message-status {
+    float: right;
+    margin-left: 5px;
+    font-size: 12px;
+    color: #888;
+  }
+  
+  .seen-icon {
+    color: #3498db;
+  }
+  
+  .message-box {
+    position: relative;
+  }
+
 
 
 

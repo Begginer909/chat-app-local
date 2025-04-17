@@ -7,6 +7,7 @@ let userId = null;
 let lastSenderId = null;
 let currentChatGroupID = null;
 let currentChatUserID = null;
+let chatType;
 
 document.addEventListener('DOMContentLoaded', async () => {
 	try {
@@ -40,21 +41,21 @@ function setupChat(data) {
 	socket.on('newMessage', handleNewMessage);
 
 	//Function to process the incomming messages to show for both sender and receiver
-	function handleNewMessage({ senderID, receiverID, username, message, messageType, fileUrl, groupID, chatType }) {
-		console.log(`Received message: chatType=${chatType}, from=${senderID}, to=${receiverID}, group=${groupID}`);
+	function handleNewMessage({ senderID, receiverID, username, message, messageType, fileUrl, groupID, chatType, messageID }) {
+		//console.log(`Received message: chatType=${chatType}, from=${senderID}, to=${receiverID}, group=${groupID}`);
 
 		//Check if the chat type to determine what to display
 		if (chatType === 'private') {
 			// For private messages, check if this chat is currently active
 			if (senderID === currentChatUserID || (receiverID === currentChatUserID && senderID === userId)) {
-				displayMessage({ senderID, receiverID, username, message, messageType, fileUrl });
-				console.log(`Sender: ${senderID} currentChatUserID ${currentChatUserID} receiverID ${receiverID} userId ${userId}`);
+				displayMessage({ senderID, receiverID, username, message, messageType, fileUrl, messageID });
+				//console.log(`Sender: ${senderID} currentChatUserID ${currentChatUserID} receiverID ${receiverID} userId ${userId}`);
 			}
 		} else if (chatType === 'group') {
 			// For group messages, check if this is for the current group
 			if (groupID === currentChatGroupID) {
-				displayMessage({ senderID, username, message, messageType, fileUrl, groupID });
-				console.log(`groupID: ${groupID} currentchatGroupID ${currentChatGroupID}`);
+				displayMessage({ senderID, username, message, messageType, fileUrl, groupID, messageID });
+				//console.log(`groupID: ${groupID} currentchatGroupID ${currentChatGroupID}`);
 			}
 		}
 
@@ -62,15 +63,70 @@ function setupChat(data) {
 		socket.emit('recentChat', userId);
 	}
 
+	// Check Status of users
+	socket.on('messageStatus', handleMessageStatus);
+
+	function handleMessageStatus({ messageID, status, userID, username, seenByOthers, groupID }) {
+		console.log(`${messageID} ${status}`);
+		// Find the message element by messageID
+		const messageElement = document.querySelector(`[data-message-id="${messageID}"]`);
+		if (!messageElement) return;
+
+		//console.log('Status update received:', messageID, status);
+
+		// Update the status indicator
+		const statusIndicator = messageElement.querySelector('.message-status');
+		if (!statusIndicator) {
+			const statusContainer = messageElement.querySelector('.message-status-container');
+			if (statusContainer) {
+				statusIndicator = statusContainer.querySelector('.message-status');
+			}
+		}
+
+		if (!statusIndicator && messageElement.classList.contains('message-status-container')) {
+			statusIndicator = messageElement.querySelector('.message-status');
+		}
+
+		if (!statusIndicator) return;
+
+		//console.log(`Status: ${status}`);
+
+		// Update status text and icon
+		if (status === 'sent') {
+			statusIndicator.innerHTML = '<i class="fas fa-check"></i>';
+			statusIndicator.title = 'Sent';
+		} else if (status === 'delivered') {
+			statusIndicator.innerHTML = '<i class="fas fa-check-double"></i>';
+			statusIndicator.title = 'Delivered';
+		} else if (status === 'seen') {
+			statusIndicator.innerHTML = '<i class="fas fa-check-double seen-icon"></i>';
+
+			console.log(userId);
+			//For group chats, show who has seen the message
+			if (currentChatGroupID && userID && userID !== userId) {
+				// Check if this username is already in the title
+				const currentTitle = statusIndicator.title || '';
+				const seenByText = currentTitle.startsWith('Seen by') ? currentTitle : 'Seen by ';
+
+				console.log(`Seen By: ${seenByOthers}`);
+				statusIndicator.title = `Seen By ${seenByOthers}`;
+			} else if (userID && !currentChatGroupID) {
+				statusIndicator.title = `Seen`;
+			} else {
+				statusIndicator.title = `Seen By ${seenByOthers}`;
+			}
+		}
+	}
+
 	function sendMessage(message, file) {
 		if (!message.trim() && !file) return;
 
-		const chatType = currentChatGroupID ? 'group' : 'private';
+		chatType = currentChatGroupID ? 'group' : 'private';
 		const receiverID = currentChatGroupID || currentChatUserID;
 
-		console.log(`Send message to ${receiverID}`);
+		//console.log(`Send message to ${receiverID}`);
 
-		console.log('Chat Type: ' + chatType);
+		//console.log('Chat Type: ' + chatType);
 
 		const receiver = chatType === 'private' ? currentChatUserID : null;
 		const groupID = chatType === 'group' ? currentChatGroupID : null;
@@ -98,8 +154,8 @@ function setupChat(data) {
 		formData.append('files', file);
 		formData.append('groupID', groupID);
 
-		console.log(`Chat Type is ${chatType}`);
-		console.log(`GROUP ID IS ${groupID}`);
+		//console.log(`Chat Type is ${chatType}`);
+		//console.log(`GROUP ID IS ${groupID}`);
 
 		fetch('http://localhost:3000/api/upload', {
 			method: 'POST',
@@ -107,9 +163,9 @@ function setupChat(data) {
 		})
 			.then((res) => res.json())
 			.then((data) => {
-				console.log('Upload response:', data);
+				//console.log('Upload response:', data);
 				payload.fileUrl = data.fileUrl || null;
-				console.log(`payload: ${payload}`);
+				//console.log(`payload: ${payload}`);
 				socket.emit('sendmessage', payload);
 				socket.emit('recentChat', userId);
 			})
@@ -117,8 +173,10 @@ function setupChat(data) {
 	}
 
 	function displayMessage(msg) {
-		console.log(msg.message);
-		console.log(`msg${msg.fileUrl}`);
+		//console.log(msg.message);
+		//console.log(`msg${msg.fileUrl}`);
+		//console.log(`fileURL: ${msg.fileUrl} messageType: ${msg.messageType}`);
+		//console.log(`status  ${msg.status} messageID ${msg.messageID}`);
 		const messageWrapper = document.createElement('div');
 		messageWrapper.classList.add('message-wrapper');
 
@@ -130,7 +188,6 @@ function setupChat(data) {
 			nameElement.classList.add('message-name');
 			messageWrapper.appendChild(nameElement);
 		}
-
 		const messageElement = document.createElement('div');
 		messageElement.textContent = msg.message;
 		messageElement.classList.add('message-box');
@@ -142,14 +199,22 @@ function setupChat(data) {
 			messageWrapper.classList.add('other-message'); // Align left
 		}
 
-		console.log(`${msg.fileUrl} 222`);
+		// Create a separate container for the status indicator
+		const statusContainer = document.createElement('div');
+		statusContainer.classList.add('message-status-container');
+
+		// Create the status indicator
+		const statusIndicator = document.createElement('span');
+		statusIndicator.classList.add('message-status');
+
+		//console.log(`${msg.fileUrl} 222`);
 		if (msg.messageType === 'image' && msg.fileUrl) {
 			try {
 				const fileUrls = JSON.parse(msg.fileUrl);
-				console.log(`parse ${fileUrls}`);
-				console.log(fileUrls);
+				//console.log(`parse ${fileUrls}`);
+				//console.log(fileUrls);
 				fileUrls.forEach((file) => {
-					console.log(`url is: ${file.url}`);
+					//console.log(`url is: ${file.url}`);
 					const imgElement = document.createElement('img');
 					imgElement.src = `http://localhost/chat-app/server${file.url}`;
 					imgElement.classList.add('chat-image', 'img-fluid'); // Add Bootstrap class
@@ -195,8 +260,40 @@ function setupChat(data) {
 			messageElement.textContent = msg.message;
 		}
 
+		if (msg.messageID) {
+			messageWrapper.setAttribute('data-message-id', msg.messageID);
+		}
+
+		if (msg.senderID === userId) {
+			statusIndicator.innerHTML = '<i class="fas fa-check"></i>'; // Initial "sent" status
+			statusIndicator.title = 'Sent';
+
+			// Append the status container to the message
+			statusContainer.appendChild(statusIndicator);
+			messageWrapper.appendChild(messageElement);
+			messageWrapper.appendChild(statusContainer);
+		} else {
+			// For messages received, don't add status indicators
+			messageWrapper.appendChild(messageElement);
+		}
+
+		// Mark as seen if this is an incoming message
+		if (msg.senderID !== userId && msg.messageID) {
+			// Emit seen status for the message
+			socket.emit('seenMessage', {
+				messageID: msg.messageID,
+				senderID: msg.senderID,
+				userID: userId,
+				username: fullname.textContent,
+				chatType: currentChatGroupID ? 'group' : 'private',
+				groupID: currentChatGroupID,
+			});
+		}
+
 		// Append message to the container
+		statusContainer.appendChild(statusIndicator);
 		messageWrapper.appendChild(messageElement);
+		messageWrapper.appendChild(statusContainer);
 		messages.appendChild(messageWrapper);
 
 		lastSenderId = msg.senderID;
@@ -263,7 +360,7 @@ function setupChat(data) {
 			currentChatGroupID = null; // Reset group chat ID
 		}
 
-		console.log(`current: ${currentChatUserID}`);
+		//(`current: ${currentChatUserID}`);
 
 		messages.innerHTML = '';
 
@@ -285,10 +382,23 @@ function setupChat(data) {
 		})
 			.then((response) => response.json())
 			.then((messages) => {
-				console.log('Fetched messages:', messages);
+				//console.log('Fetched messages:', messages);
 				document.getElementById('messages').innerHTML = '';
+
+				//Keep track of last sender for grouping messages
+				lastSenderId = null;
+
 				messages.forEach((msg) => {
 					displayMessage(msg);
+
+					handleMessageStatus({
+						messageID: msg.messageID,
+						status: msg.status,
+						receiverID: msg.receiverID,
+						userID: msg.userID,
+						username: msg.username,
+						seenByOthers: msg.seenByUsers,
+					});
 				});
 			})
 			.catch((error) => {
@@ -296,11 +406,11 @@ function setupChat(data) {
 			});
 	}
 
-	console.log('It start to run this socket.emit');
+	//console.log('It start to run this socket.emit');
 	socket.emit('recentChat', userId);
 
 	socket.on('recentChatResult', (data) => {
-		console.log('Recent Data: ', data);
+		//console.log('Recent Data: ', data);
 		recent(data);
 	});
 
@@ -347,7 +457,7 @@ function setupChat(data) {
 		const groupName = groupNameInput.value;
 		const members = Array.from(document.querySelectorAll('#groupMembers input[type="checkbox"]:checked')).map((checkbox) => checkbox.value);
 		const creatorID = userId;
-		console.log(creatorID);
+		//console.log(creatorID);
 
 		if (!groupName.trim() || members.length === 0) {
 			alert('Please enter a group name and select at least one member.');
