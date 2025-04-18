@@ -200,8 +200,9 @@ export function initializeSocket(io) {
 													if (err) console.error('Error updating group receipt status', err);
 													else {
 														// Notify sender about delivery status
-														if (senderSocket) {
-															io.to(senderSocket).emit('messageStatus', {
+														const senderSocketId = users.get(senderID);
+														if (senderSocketId) {
+															io.to(`group_${groupID}`).emit('messageStatus', {
 																messageID,
 																status: 'delivered',
 																userID: member.userID,
@@ -259,63 +260,79 @@ export function initializeSocket(io) {
 			});
 		});
 
-		//Handle message seen events
+		// In the server-side socket.js file
 		socket.on('seenMessage', (data) => {
 			const { messageID, senderID, userID, username, groupID, chatType } = data;
 
-			if (chatType === 'private') {
+			if (chatType === 'group') {
+				// First update the DB
+				db.query('UPDATE group_message_receipts SET status = ?, statusChangedAt = NOW() WHERE messageID = ? AND userID = ?', ['seen', messageID, userID], (err) => {
+					if (err) console.error('Error updating group receipt status to seen:', err);
+					else {
+						// Get ALL users who have seen this message
+						db.query(
+							'SELECT u.userID, u.username FROM group_message_receipts gmr JOIN users u ON gmr.userID = u.userID WHERE gmr.messageID = ? AND gmr.status = "seen"',
+							[messageID],
+							(err, seenResults) => {
+								if (err) {
+									console.error('Error getting seen users:', err);
+									return;
+								}
+
+								// Create a string of all usernames who've seen the message
+								const seenByUsers = seenResults.map((user) => user.username).join(', ');
+
+								// Get message sender ID
+								db.query('SELECT senderID FROM messages WHERE messageID = ?', [messageID], (err, result) => {
+									if (err || !result.length) {
+										console.error('Error getting message sender:', err);
+										return;
+									}
+
+									const messageSenderID = result[0].senderID;
+									const senderSocket = users.get(messageSenderID);
+
+									// Emit to sender with complete list of who has seen the message
+									if (senderSocket) {
+										io.to(senderSocket).emit('messageStatus', {
+											messageID,
+											status: 'seen',
+											userID,
+											username,
+											groupID,
+											seenByUsers, // Send complete list of users who've seen the message
+										});
+									}
+
+									// Also broadcast to all group members with complete list
+									io.to(`group_${groupID}`).emit('messageStatus', {
+										messageID,
+										status: 'seen',
+										userID,
+										username,
+										groupID,
+										seenByUsers,
+									});
+								});
+							}
+						);
+					}
+				});
+			} else if (chatType === 'private') {
+				// Fix for private messages
 				db.query('UPDATE private_message_receipts SET status = ?, statusChangedAt = NOW() WHERE messageID = ?', ['seen', messageID], (err) => {
 					if (err) console.error('Error updating private receipt status to seen:', err);
 					else {
 						// Notify sender that message was seen
 						const senderSocket = users.get(senderID);
 						if (senderSocket) {
-							io.to(senderSocket).emit('messageStatus', {
+							console.log(`${senderID} and ${senderSocket}`);
+							io.to(`private_${senderID}`).emit('messageStatus', {
 								messageID,
 								status: 'seen',
-							});
-							console.log('About to emit messageStatus with data:', {
-								messageID,
-								status: 'delivered',
-								senderID,
+								receiverID: userID,
 							});
 						}
-					}
-				});
-			} else if (chatType === 'group') {
-				db.query('UPDATE group_message_receipts SET status = ?, statusChangedAt = NOW() WHERE messageID = ? AND userID = ?', ['seen', messageID, userID], (err) => {
-					if (err) console.error('Error updating group receipt status to seen:', err);
-					else {
-						// Get message sender ID
-						db.query('SELECT senderID FROM messages WHERE messageID = ?', [messageID], (err, result) => {
-							if (err || !result.length) {
-								console.error('Error getting message sender:', err);
-								return;
-							}
-
-							const messageSenderID = result[0].senderID;
-							const senderSocket = users.get(messageSenderID);
-
-							// Emit to sender and all group members
-							if (senderSocket) {
-								io.to(senderSocket).emit('messageStatus', {
-									messageID,
-									status: 'seen',
-									userID,
-									username,
-									groupID,
-								});
-							}
-
-							// Also broadcast to all group members
-							io.to(`group_${groupID}`).emit('messageStatus', {
-								messageID,
-								status: 'seen',
-								userID,
-								username,
-								groupID,
-							});
-						});
 					}
 				});
 			}

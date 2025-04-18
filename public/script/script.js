@@ -50,15 +50,27 @@ function setupChat(data) {
 			if (senderID === currentChatUserID || (receiverID === currentChatUserID && senderID === userId)) {
 				displayMessage({ senderID, receiverID, username, message, messageType, fileUrl, messageID });
 				//console.log(`Sender: ${senderID} currentChatUserID ${currentChatUserID} receiverID ${receiverID} userId ${userId}`);
+
+				// Only mark as seen if this is an incoming message AND the group chat is active
+				if (senderID !== userId && messageID && groupID === currentChatGroupID) {
+					socket.emit('seenMessage', {
+						messageID: messageID,
+						senderID: senderID,
+						userID: userId,
+						chatType: 'private',
+					});
+				}
 			}
 		} else if (chatType === 'group') {
 			// For group messages, check if this is for the current group
 			if (groupID === currentChatGroupID) {
 				displayMessage({ senderID, username, message, messageType, fileUrl, groupID, messageID });
 				//console.log(`groupID: ${groupID} currentchatGroupID ${currentChatGroupID}`);
-
+				console.log('Works fine here before emitting');
 				// Only mark as seen if this is an incoming message AND the group chat is active
+				console.log(`senderID: ${senderID} userID: ${userId} messageID: ${messageID} groupID: ${groupID} currentGroupID: ${currentChatGroupID}`);
 				if (senderID !== userId && messageID && groupID === currentChatGroupID) {
+					console.log('Works fine here');
 					socket.emit('seenMessage', {
 						messageID: messageID,
 						senderID: senderID,
@@ -422,7 +434,6 @@ function setupChat(data) {
 
 				messages.forEach((msg) => {
 					displayMessage(msg);
-
 					handleMessageStatus({
 						messageID: msg.messageID,
 						status: msg.status,
@@ -432,7 +443,7 @@ function setupChat(data) {
 					});
 
 					// If this is an unread message from someone else, mark it as seen
-					if (msg.senderID !== userId && msg.status !== 'seen' && msg.messageID) {
+					if (msg.senderID !== userId && msg.messageID && msg.messageID) {
 						socket.emit('seenMessage', {
 							messageID: msg.messageID,
 							senderID: msg.senderID,
