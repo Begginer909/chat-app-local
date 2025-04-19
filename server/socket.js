@@ -232,16 +232,59 @@ export function initializeSocket(io) {
 							}
 						});
 					} else {
-						// For file messages, just broadcast to all clients since DB insert was done in the upload endpoint
-						io.to(`group_${groupID}`).emit('newMessage', {
-							senderID,
-							username,
-							message,
-							messageType,
-							fileUrl,
-							chatType,
-							groupID,
-							messageID,
+						// For file messages in group chats
+						// Get all group members except sender
+						db.query('SELECT userID FROM group_members WHERE groupID = ? AND userID != ?', [groupID, senderID], (err, members) => {
+							if (err) {
+								console.error('Error fetching group members:', err);
+								return;
+							}
+
+							// First, get the messageID that was created during file upload
+							db.query('SELECT messageID FROM messages WHERE senderID = ? AND fileUrl = ? AND groupID = ? ORDER BY sentAt DESC LIMIT 1', [senderID, fileUrl, groupID], (err, messageResults) => {
+								if (err || messageResults.length === 0) {
+									console.error('Error finding message ID for file:', err);
+									return;
+								}
+
+								const messageID = messageResults[0].messageID;
+
+								// Create receipt records for all members
+								members.forEach((member) => {
+									db.query('INSERT INTO group_message_receipts (messageID, userID, status) VALUES (?, ?, ?)', [messageID, member.userID, 'sent'], (err) => {
+										if (err) console.error('Error creating group receipt record: ', err);
+
+										// If member is online, mark as delivered
+										const memberSocket = users.get(member.userID);
+										if (memberSocket) {
+											db.query('UPDATE group_message_receipts SET status = ?, statusChangedAt = NOW() WHERE messageID = ? AND userID = ?', ['delivered', messageID, member.userID], (err) => {
+												if (err) console.error('Error updating group receipt status', err);
+												else {
+													// Notify sender about delivery status
+													io.to(`group_${groupID}`).emit('messageStatus', {
+														messageID,
+														status: 'delivered',
+														userID: member.userID,
+														groupID,
+													});
+												}
+											});
+										}
+									});
+								});
+
+								// Emit message with the messageID included
+								io.to(`group_${groupID}`).emit('newMessage', {
+									senderID,
+									username,
+									message,
+									messageType,
+									fileUrl,
+									chatType,
+									groupID,
+									messageID,
+								});
+							});
 						});
 					}
 				}
