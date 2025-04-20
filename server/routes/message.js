@@ -171,4 +171,37 @@ router.post('/createGroup', async (req, res) => {
 	}
 });
 
+// Get group members with online status
+router.get('/groupMembers', (req, res) => {
+	const groupID = req.query.groupID;
+
+	if (!groupID) {
+		return res.status(400).json({ error: 'Group ID is required' });
+	}
+
+	const query = `
+        SELECT 
+            u.userID, 
+            u.username, 
+            u.firstname, 
+            u.lastname, 
+            u.status
+        FROM 
+            group_members gm
+        JOIN 
+            users u ON gm.userID = u.userID
+        WHERE 
+            gm.groupID = ?
+    `;
+
+	db.query(query, [groupID], (err, results) => {
+		if (err) {
+			console.error('Error fetching group members:', err);
+			return res.status(500).json({ error: 'Database error' });
+		}
+
+		res.json(results);
+	});
+});
+
 export default router;

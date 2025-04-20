@@ -1,6 +1,7 @@
 import db from './config/config.js';
 
 const users = new Map(); // Stores userID -> socketID
+const groupOnlineStatus = new Map(); // Stores groupID -> boolean (has online members)
 
 export function initializeSocket(io) {
 	io.on('connection', (socket) => {
@@ -10,6 +11,20 @@ export function initializeSocket(io) {
 		socket.on('register', (userID) => {
 			users.set(userID, socket.id);
 			console.log(`User ${userID} registered with socket ${socket.id}`);
+
+			// Update user status to online in database
+			db.query('UPDATE users SET status = ? WHERE userID = ?', ['online', userID], (err) => {
+				if (err) {
+					console.error('Error updating user status to online:', err);
+					return;
+				}
+
+				// Broadcast to all users that this user is now online
+				socket.broadcast.emit('statusUpdate', { userID, status: 'online' });
+
+				// Update group status for all groups this user is a member of
+				updateGroupStatus(userID, 'online', io);
+			});
 
 			socket.join(`private_${userID}`);
 
@@ -25,6 +40,13 @@ export function initializeSocket(io) {
 					console.log(`User ${userID} joined group_${group.groupID} room`);
 				});
 			});
+
+			// Send the current online users to the newly connected user
+			const onlineUsers = Array.from(users.keys());
+			socket.emit('onlineUsers', onlineUsers);
+
+			// Send current group online status
+			socket.emit('groupOnlineStatus', Object.fromEntries(groupOnlineStatus));
 		});
 
 		//Query to show recent chat for users and receiver
@@ -34,6 +56,7 @@ export function initializeSocket(io) {
 								u.username,
 								u.firstname,
 								u.lastname,
+								u.status,
 								p.sentAt,
 								'private' AS chatType
 							FROM users u
@@ -48,6 +71,7 @@ export function initializeSocket(io) {
 								g.groupName AS username,  
 								NULL AS firstname, 
 								NULL AS lastname,
+								NULL AS status,
 								m.sentAt,
 								'group' AS chatType
 							FROM groups g JOIN messages m ON g.groupID = m.groupID
@@ -447,13 +471,79 @@ export function initializeSocket(io) {
 		});
 
 		socket.on('disconnect', () => {
+			let disconnectedUserID = null;
+
+			// Find which user disconnected
 			for (const [userID, socketID] of users.entries()) {
 				if (socketID === socket.id) {
+					disconnectedUserID = userID;
 					console.log(`User ${userID} disconnected`);
 					users.delete(userID);
 					break;
 				}
 			}
+
+			// Update user status to offline in database
+			if (disconnectedUserID) {
+				db.query('UPDATE users SET status = ? WHERE userID = ?', ['offline', disconnectedUserID], (err) => {
+					if (err) {
+						console.error('Error updating user status to offline:', err);
+						return;
+					}
+
+					// Broadcast to all users that this user is now offline
+					io.emit('statusUpdate', { userID: disconnectedUserID, status: 'offline' });
+
+					// Update group status for all groups this user is a member of
+					updateGroupStatus(disconnectedUserID, 'offline', io);
+				});
+			}
+		});
+	});
+}
+
+// Function to update group online status when a user's status changes
+function updateGroupStatus(userID, status, io) {
+	// Get all groups this user is a member of
+	db.query('SELECT groupID FROM group_members WHERE userID = ?', [userID], (err, groups) => {
+		if (err) {
+			console.error('Error fetching user groups:', err);
+			return;
+		}
+
+		console.log('Works here');
+
+		groups.forEach((group) => {
+			const groupID = group.groupID;
+
+			// For each group, check if any members are online
+			db.query(
+				`
+                SELECT COUNT(*) AS onlineCount 
+                FROM group_members gm 
+                JOIN users u ON gm.userID = u.userID 
+                WHERE gm.groupID = ? AND u.status = 'online'
+            `,
+				[groupID],
+				(err, result) => {
+					if (err) {
+						console.error('Error checking group online status:', err);
+						return;
+					}
+
+					const hasOnlineMembers = result[0].onlineCount > 0;
+
+					// Update the group status in our map
+					groupOnlineStatus.set(groupID, hasOnlineMembers);
+
+					console.log(`GroupOnlineStatus ${groupOnlineStatus.get(userID)} hasOnlineMembers ${hasOnlineMembers}`);
+					// Broadcast group status update
+					io.emit('groupStatusUpdate', {
+						groupID: groupID,
+						hasOnlineMembers: hasOnlineMembers,
+					});
+				}
+			);
 		});
 	});
 }

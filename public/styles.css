@@ -330,7 +330,70 @@ a {
     position: relative;
   }
 
+  /* Status indicator styling */
+.status-indicator {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin-right: 8px;
+    position: relative;
+}
 
+.status-indicator.online {
+    background-color: #2ecc71; /* Green for online */
+    box-shadow: 0 0 5px rgba(46, 204, 113, 0.5);
+}
 
+.status-indicator.offline {
+    background-color: #95a5a6; /* Grey for offline */
+}
 
+/* Group status count text */
+#group-status-text {
+    font-size: 12px;
+    color: #7f8c8d;
+}
+
+.chat-item {
+    display: flex;
+    align-items: center;
+    margin-bottom: 5px;
+    position: relative;
+}
+
+/* Add this to your existing chat-item styling */
+.chat-item button {
+    display: flex !important;;
+    align-items: center;
+    padding-left: 15px !important;
+    text-align: left;
+}
+
+/* In the chat header, style for the current chat user status */
+.chat-header {
+    display: flex;
+    align-items: center;
+}
+
+.chat-header .status-indicator {
+    margin-left: 8px;
+}
+
+.status-indicator {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin-right: 8px;
+    display: inline-block;
+    position: relative;
+}
+
+.status-indicator.online {
+    background-color: #28a745; /* Green for online */
+}
+
+.status-indicator.offline {
+    background-color: #6c757d; /* Grey for offline */
+}
 
