@@ -491,13 +491,21 @@ function setupChat(data) {
 				button.type = 'button';
 				button.classList.add('btn', 'btn-light', 'mb-0', 'w-100', 'p-3', 'mb-2', 'text-left');
 
+				// Text wrapper for the username
+				const textSpan = document.createElement('span');
+				textSpan.classList.add('ms-2', 'flex-grow-1');
+
 				if (chat.chatType === 'private') {
-					button.textContent = `${chat.firstname} ${chat.lastname}`;
+					textSpan.textContent = `${chat.firstname} ${chat.lastname}`;
 					chatNameUsers = `${chat.firstname} ${chat.lastname}`;
 				} else {
-					button.textContent = `${chat.username} (Group)`;
+					textSpan.textContent = `${chat.username} (Group)`;
 					chatNameUsers = `${chat.username} (Group)`;
 				}
+
+				// Append status indicator and text to button
+				button.appendChild(statusIndicator);
+				button.appendChild(textSpan);
 
 				// Fetch all messages for this user on click
 				button.addEventListener('click', () => {
@@ -513,11 +521,12 @@ function setupChat(data) {
 					button.classList.add('hover-effect');
 				});
 
-				chatItem.appendChild(statusIndicator);
 				chatItem.appendChild(button);
 				chatlist.append(chatItem);
 			}
 		});
+		// Call status update after rendering the chat list
+		updateUserStatusIndicators();
 	}
 
 	function fetchChatHistory(otherUserID, chatType) {
@@ -532,6 +541,7 @@ function setupChat(data) {
 		} else {
 			currentChatUserID = otherUserID; // Set private chat ID
 			currentChatGroupID = null; // Reset group chat ID
+			console.log(`Set currentChatUserID=${currentChatUserID}, cleared currentChatGroupID`);
 		}
 
 		socket.emit('activateChat', {
@@ -814,7 +824,7 @@ function setupChat(data) {
 
 	socket.on('groupStatusUpdate', ({ groupID, hasOnlineMembers }) => {
 		// Update group status
-		onlineGroups.set(groupID, hasOnlineMembers);
+		onlineGroups.set(parseInt(groupID), hasOnlineMembers);
 
 		// Update UI
 		updateUserStatusIndicators();
@@ -827,11 +837,14 @@ function setupChat(data) {
 
 	socket.on('statusUpdate', ({ userID, status }) => {
 		// Update individual user status
+		const userIdString = String(userID);
+
 		if (status === 'online') {
 			onlineUsers.add(userID);
 		} else {
 			onlineUsers.delete(userID);
 		}
+		
 		console.log('Hello World ');
 		// Update UI
 		updateUserStatusIndicators();
@@ -863,75 +876,147 @@ function setupChat(data) {
 		})
 			.then((response) => response.json())
 			.then((members) => {
-				// Count online members
-				const onlineCount = members.filter((member) => onlineUsers.has(member.userID)).length;
+				// Ensure all IDs are strings before comparison
+				const onlineCount = members.filter((member) => 
+					onlineUsers.has(String(member.userID))
+				).length;
 				const totalCount = members.length;
 
-				// Update the header
-				const statusText = document.getElementById('group-status-text');
-				if (statusText) {
-					statusText.textContent = `${onlineCount} of ${totalCount} online`;
+				console.log(`Online Count: ${onlineCount} groupID: ${groupID}`);
+				console.log('onlineUsers Set:', Array.from(onlineUsers));
+				console.log(
+					'member IDs:',
+					members.map((m) => String(m.userID))
+				);
 
-					console.log(`Online Count ${onlineCount} of Total Count ${totalCount}`);
+				// Create status elements if they don't exist
+				let statusText = document.getElementById('group-status-text');
+				if (!statusText) {
+					statusText = document.createElement('span');
+					statusText.id = 'group-status-text';
+					statusText.className = 'ml-2';
+					document.querySelector('.chat-header').appendChild(statusText);
 				}
+	
+				let statusIndicator = document.getElementById('chat-status-indicator');
+				if (!statusIndicator) {
+					statusIndicator = document.createElement('span');
+					statusIndicator.id = 'chat-status-indicator';
+					statusIndicator.className = 'status-indicator ml-2';
+					document.querySelector('.chat-header').appendChild(statusIndicator);
+				}
+	
+				// Update the status text
+				statusText.textContent = `${onlineCount} of ${totalCount} online`;
+				statusText.style.display = 'inline-block';
+	
+				// Update the status indicator
+				statusIndicator.classList.remove('online', 'offline');
+				statusIndicator.classList.add(onlineCount > 0 ? 'online' : 'offline');
+				statusIndicator.style.display = 'inline-block';
 			})
 			.catch((error) => console.error('Error fetching group members:', error));
 	}
 
 	// Enhance the updateUserStatusIndicators function with tooltips
 	function updateUserStatusIndicators() {
+		console.log('Updating status indicators...');
+		console.log('Online users:', Array.from(onlineUsers));
+		console.log('Online groups:', Array.from(onlineGroups.entries()));
+		
 		// Update private chat indicators
 		document.querySelectorAll('.status-indicator[data-user-id]').forEach((indicator) => {
 			const userID = indicator.dataset.userId;
-			// Convert to string to ensure proper comparison with onlineUsers Set
-			const isOnline = onlineUsers.has(userID.toString());
-
+			// Convert to string to ensure proper comparison
+			const isOnline = onlineUsers.has(String(userID));
+	
 			indicator.classList.remove('online', 'offline');
 			indicator.classList.add(isOnline ? 'online' : 'offline');
 			indicator.setAttribute('title', isOnline ? 'Online' : 'Offline');
-
-			console.log(`Works Here ${isOnline}`);
+	
+			console.log(`Updating user ${userID} status to ${isOnline ? 'online' : 'offline'}`);
 		});
-
+	
 		// Update group chat indicators
 		document.querySelectorAll('.status-indicator[data-group-id]').forEach((indicator) => {
 			const groupID = parseInt(indicator.dataset.groupId);
-			const hasOnlineMembers = onlineGroups.get(groupID);
-
+			// Ensure consistent comparison
+			const hasOnlineMembers = Boolean(onlineGroups.get(groupID));
+	
 			indicator.classList.remove('online', 'offline');
 			indicator.classList.add(hasOnlineMembers ? 'online' : 'offline');
 			indicator.setAttribute('title', hasOnlineMembers ? 'Members online' : 'No members online');
+	
+			console.log(`Updating group ${groupID} status to ${hasOnlineMembers ? 'online' : 'offline'}`);
 		});
-
+	
 		// Update header status indicator
 		updateHeaderStatus();
 	}
 	// Enhanced updateHeaderStatus function with tooltips
 	function updateHeaderStatus() {
 		const statusIndicator = document.getElementById('chat-status-indicator');
-		if (!statusIndicator) return;
+		const groupStatusText = document.getElementById('group-status-text');
+		// Create elements if they don't exist
+		if (!statusIndicator) {
+			const headerElement = document.querySelector('.chat-header');
+			if (!headerElement) return;
+			
+			const newStatusIndicator = document.createElement('span');
+			newStatusIndicator.id = 'chat-status-indicator';
+			newStatusIndicator.className = 'status-indicator ml-2';
+			headerElement.appendChild(newStatusIndicator);
+		}
 
-		console.log(`He${currentChatUserID}`);
+		if (!groupStatusText && currentChatGroupID) {
+			const headerElement = document.querySelector('.chat-header');
+			if (!headerElement) return;
+			
+			const newStatusText = document.createElement('span');
+			newStatusText.id = 'group-status-text';
+			newStatusText.className = 'ml-2';
+			headerElement.appendChild(newStatusText);
+		}
+
+		// Get fresh references after possibly creating elements
+		const updatedStatusIndicator = document.getElementById('chat-status-indicator');
+		const updatedGroupStatusText = document.getElementById('group-status-text');
+		
+		if (!updatedStatusIndicator) return;
+	
+		console.log('Updating header status:', {
+			currentChatUserID,
+			currentChatGroupID,
+			chatType: currentChatGroupID ? 'group' : 'private',
+		});
+	
+		// Hide both elements initially
+		updatedStatusIndicator.style.display = 'none';
+		if (updatedGroupStatusText) updatedGroupStatusText.style.display = 'none';
+	
 		if (currentChatUserID) {
 			console.log(`current: ${currentChatUserID}`);
 			// Private chat
-			const isOnline = onlineUsers.has(currentChatUserID);
-
-			statusIndicator.style.display = 'inline-block';
-			statusIndicator.classList.remove('online', 'offline');
-			statusIndicator.classList.add(isOnline ? 'online' : 'offline');
+			const isOnline = onlineUsers.has(String(currentChatUserID));
+	
+			updatedStatusIndicator.style.display = 'inline-block';
+			updatedStatusIndicator.classList.remove('online', 'offline');
+			updatedStatusIndicator.classList.add(isOnline ? 'online' : 'offline');
 		} else if (currentChatGroupID) {
 			// Group chat
-			const hasOnlineMembers = onlineGroups.get(currentChatGroupID);
-
-			statusIndicator.style.display = 'inline-block';
-			statusIndicator.classList.remove('online', 'offline');
-			statusIndicator.classList.add(hasOnlineMembers ? 'online' : 'offline');
-
-			// We'll update this tooltip with the count from updateGroupHeader
+			const hasOnlineMembers = Boolean(onlineGroups.get(currentChatGroupID));
+	
+			updatedStatusIndicator.style.display = 'inline-block';
+			updatedStatusIndicator.classList.remove('online', 'offline');
+			updatedStatusIndicator.classList.add(hasOnlineMembers ? 'online' : 'offline');
+	
+			// Show group status text if it exists
+			if (updatedGroupStatusText) {
+				updatedGroupStatusText.style.display = 'inline-block';
+			}
 		} else {
 			// No chat selected
-			statusIndicator.style.display = 'none';
+			updatedStatusIndicator.style.display = 'none';
 		}
 	}
 

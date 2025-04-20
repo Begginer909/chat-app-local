@@ -9,7 +9,7 @@ export function initializeSocket(io) {
 
 		// Register user and store their socket ID
 		socket.on('register', (userID) => {
-			users.set(userID, socket.id);
+			users.set(String(userID), socket.id);
 			console.log(`User ${userID} registered with socket ${socket.id}`);
 
 			// Update user status to online in database
@@ -19,8 +19,12 @@ export function initializeSocket(io) {
 					return;
 				}
 
+				// Convert all user IDs to strings before sending
+				const onlineUsers = Array.from(users.keys()).map(id => String(id));
+				socket.emit('onlineUsers', onlineUsers);
+				
 				// Broadcast to all users that this user is now online
-				socket.broadcast.emit('statusUpdate', { userID, status: 'online' });
+				socket.broadcast.emit('statusUpdate', { userID: String(userID), status: 'online' });
 
 				// Update group status for all groups this user is a member of
 				updateGroupStatus(userID, 'online', io);
@@ -40,10 +44,6 @@ export function initializeSocket(io) {
 					console.log(`User ${userID} joined group_${group.groupID} room`);
 				});
 			});
-
-			// Send the current online users to the newly connected user
-			const onlineUsers = Array.from(users.keys());
-			socket.emit('onlineUsers', onlineUsers);
 
 			// Send current group online status
 			socket.emit('groupOnlineStatus', Object.fromEntries(groupOnlineStatus));
