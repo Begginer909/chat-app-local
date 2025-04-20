@@ -294,6 +294,27 @@ a {
     transition: background-color 0.3s ease, color 0.3s ease;
 }
 
+.typing-indicator {
+    bottom: 70px;
+    left: 20px;
+    background-color: rgba(245, 245, 245, 0.9);
+    border-radius: 15px;
+    padding: 5px 15px;
+    font-size: 14px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    z-index: 100;
+    max-width: 80%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    animation: fadeIn 0.3s;
+  }
+  
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
 .message-status {
     float: right;
     margin-left: 5px;

@@ -9,6 +9,116 @@ let currentChatGroupID = null;
 let currentChatUserID = null;
 let chatType;
 
+// Add these variables at the top with your other variables
+let typingTimer;
+const typingDelay = 1000; // Delay in ms (1 second)
+let isTyping = false;
+let typingUsers = new Map(); // To track who's typing in group chats
+
+// Add this function inside the setupChat function after setting up other socket listeners
+function setupTypingIndicator() {
+	console.log('Works here starting');
+	// Create typing indicator element if it doesn't exist
+	if (!document.getElementById('typingIndicator')) {
+		const typingIndicator = document.createElement('div');
+		typingIndicator.id = 'typingIndicator';
+		typingIndicator.classList.add('typing-indicator');
+		typingIndicator.style.display = 'none';
+		typingIndicator.style.fontStyle = 'italic';
+		typingIndicator.style.color = '#666';
+		typingIndicator.style.padding = '5px 10px';
+		document.querySelector('.chat-body').appendChild(typingIndicator);
+	}
+
+	// Listen for typing event from server
+	socket.on('userTyping', ({ userID, username, chatType, groupID }) => {
+		const typingIndicator = document.getElementById('typingIndicator');
+
+		// Only show typing indicator if we're in the correct chat
+		if (chatType === 'private' && userID === currentChatUserID) {
+			typingIndicator.textContent = `${username} is typing...`;
+			typingIndicator.style.display = 'block';
+		} else if (chatType === 'group' && groupID === currentChatGroupID) {
+			// Add this user to the list of typing users
+			typingUsers.set(userID, username);
+
+			if (typingUsers.size === 1) {
+				typingIndicator.textContent = `${username} is typing...`;
+			} else {
+				typingIndicator.textContent = `Someone is typing...`;
+			}
+			typingIndicator.style.display = 'block';
+		}
+
+		// Make sure typing indicator is visible
+		messages.scrollTop = messages.scrollHeight;
+	});
+
+	// Listen for stopped typing event
+	socket.on('userStoppedTyping', ({ userID, chatType, groupID }) => {
+		const typingIndicator = document.getElementById('typingIndicator');
+
+		if (chatType === 'private' && userID === currentChatUserID) {
+			typingIndicator.style.display = 'none';
+		} else if (chatType === 'group' && groupID === currentChatGroupID) {
+			// Remove user from typing users
+			typingUsers.delete(userID);
+
+			if (typingUsers.size === 0) {
+				typingIndicator.style.display = 'none';
+			} else if (typingUsers.size === 1) {
+				// Get the first (and only) username
+				const [username] = [...typingUsers.values()];
+				typingIndicator.textContent = `${username} is typing...`;
+			} else {
+				typingIndicator.textContent = `Several people are typing...`;
+			}
+		}
+	});
+
+	// Add input event listener to message input
+	messageInput.addEventListener('input', function () {
+		if (!isTyping) {
+			isTyping = true;
+
+			// Determine current chat type and target
+			const currentChatType = currentChatGroupID ? 'group' : 'private';
+			const targetID = currentChatType === 'private' ? currentChatUserID : currentChatGroupID;
+
+			// Only emit if we're in an active chat
+			if (targetID) {
+				socket.emit('typing', {
+					userID: userId,
+					username: fullname.textContent,
+					chatType: currentChatType,
+					receiverID: currentChatType === 'private' ? targetID : null,
+					groupID: currentChatType === 'group' ? targetID : null,
+				});
+			}
+		}
+
+		// Clear existing timer
+		clearTimeout(typingTimer);
+
+		// Set new timer
+		typingTimer = setTimeout(() => {
+			isTyping = false;
+
+			const currentChatType = currentChatGroupID ? 'group' : 'private';
+			const targetID = currentChatType === 'private' ? currentChatUserID : currentChatGroupID;
+
+			if (targetID) {
+				socket.emit('stopTyping', {
+					userID: userId,
+					chatType: currentChatType,
+					receiverID: currentChatType === 'private' ? targetID : null,
+					groupID: currentChatType === 'group' ? targetID : null,
+				});
+			}
+		}, typingDelay);
+	});
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
 	try {
 		const response = await fetch('http://localhost:3000/cookie/protected', {
@@ -31,6 +141,10 @@ function setupChat(data) {
 	userId = data.userID;
 
 	fullname.textContent = `${data.username}`;
+
+	// Call this function in the setupChat function
+	// Add this line after socket event listeners are set up
+	setupTypingIndicator();
 
 	socket.on('connect', () => {
 		socket.emit('register', userId);
@@ -408,6 +522,13 @@ function setupChat(data) {
 
 		messages.innerHTML = '';
 
+		// Reset typing indicator and tracking
+		const typingIndicator = document.getElementById('typingIndicator');
+		if (typingIndicator) {
+			typingIndicator.style.display = 'none';
+		}
+		typingUsers.clear();
+
 		//Data that needed to be sent in getMessages API to satisfy the condition
 		const payload = {
 			userID: userId,
@@ -463,9 +584,40 @@ function setupChat(data) {
 	//console.log('It start to run this socket.emit');
 	socket.emit('recentChat', userId);
 
+	let initialChatLoaded = false;
+
 	socket.on('recentChatResult', (data) => {
 		//console.log('Recent Data: ', data);
 		recent(data);
+
+		// Automatically open the first/most recent chat only on initial load
+		if (data && data.length > 0 && !initialChatLoaded) {
+			// Get the first chat (most recent)
+			const recentChat = data[0];
+
+			// Set the chat name in the header
+			let chatNameUsers;
+			if (recentChat.chatType === 'private') {
+				chatNameUsers = `${recentChat.firstname} ${recentChat.lastname}`;
+			} else {
+				chatNameUsers = `${recentChat.username} (Group)`;
+			}
+			chatName.textContent = chatNameUsers;
+
+			// Fetch the chat history for this user/group
+			fetchChatHistory(recentChat.userID, recentChat.chatType);
+
+			// Highlight the button
+			setTimeout(() => {
+				const firstChatButton = document.querySelector('.chat-item button');
+				if (firstChatButton) {
+					firstChatButton.classList.add('hover-effect');
+				}
+			}, 100);
+
+			// Set the flag to true so we don't automatically open chats again
+			initialChatLoaded = true;
+		}
 	});
 
 	//Able to show the users when creating a group

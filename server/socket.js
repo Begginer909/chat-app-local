@@ -401,6 +401,51 @@ export function initializeSocket(io) {
 			}
 		});
 
+		//Socket Event listeners for typing indicators
+		socket.on('typing', ({ userID, chatType, receiverID, groupID, username }) => {
+			console.log(`User ${userID} (${username}) is typing in ${chatType} chat`);
+
+			if (chatType === 'private') {
+				// Notify only the recipient of the message
+				const receiverSocketId = users.get(receiverID);
+				if (receiverSocketId) {
+					io.to(`private_${receiverID}`).emit('userTyping', {
+						userID,
+						username,
+						chatType,
+					});
+				}
+			} else if (chatType === 'group' && groupID) {
+				// Notify all group members except the sender
+				socket.to(`group_${groupID}`).emit('userTyping', {
+					userID,
+					username,
+					chatType,
+					groupID,
+				});
+			}
+		});
+
+		socket.on('stopTyping', ({ userID, chatType, receiverID, groupID }) => {
+			console.log(`User ${userID} stopped typing in ${chatType} chat`);
+
+			if (chatType === 'private') {
+				const receiverSocketId = users.get(receiverID);
+				if (receiverSocketId) {
+					io.to(`private_${receiverID}`).emit('userStoppedTyping', {
+						userID,
+						chatType,
+					});
+				}
+			} else if (chatType === 'group' && groupID) {
+				socket.to(`group_${groupID}`).emit('userStoppedTyping', {
+					userID,
+					chatType,
+					groupID,
+				});
+			}
+		});
+
 		socket.on('disconnect', () => {
 			for (const [userID, socketID] of users.entries()) {
 				if (socketID === socket.id) {
