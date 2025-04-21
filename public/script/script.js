@@ -18,6 +18,10 @@ let typingUsers = new Map(); // To track who's typing in group chats
 const onlineUsers = new Set(); // To store online user IDs
 const onlineGroups = new Map(); // To store group online status (groupID -> boolean)
 
+// Global variables for emoji functionality
+let emojiPicker = null;
+let currentReactionTarget = null;
+
 // Add this function inside the setupChat function after setting up other socket listeners
 function setupTypingIndicator() {
 	// Create typing indicator element if it doesn't exist
@@ -288,6 +292,104 @@ function setupChat(data) {
 		}
 	}
 
+	// Handle incoming reaction updates
+	socket.on('reactionUpdate', handleReactionUpdate);
+	socket.on('reactionRemoved', handleReactionRemoved);
+	socket.on('messageReactions', handleMessageReactions);
+
+	function handleReactionUpdate({ messageID, userID, username, emoji, chatType }) {
+	const messageElement = document.querySelector(`[data-message-id="${messageID}"]`);
+	if (!messageElement) return;
+	
+	// Get the reaction container
+	const reactionContainer = messageElement.querySelector('.reaction-container');
+	if (!reactionContainer) return;
+	
+	// Get current reactions from data attribute
+	let reactions = {};
+	try {
+		reactions = JSON.parse(messageElement.getAttribute('data-reactions') || '{}');
+	} catch (e) {
+		reactions = {};
+	}
+	
+	// Update reactions
+	if (!reactions[emoji]) {
+		reactions[emoji] = [];
+		console.log("Hello there");
+	}
+	
+	// Check if user already reacted with this emoji
+	const userIndex = reactions[emoji].findIndex(r => r.userID === userID);
+	if (userIndex === -1) {
+		reactions[emoji].push({ userID, username });
+		console.log("Hello there 2");
+
+		alert("Test");
+	}
+	
+	// Remove user from all existing emoji reactions
+	for (const [em, users] of Object.entries(reactions)) {
+		reactions[em] = users.filter(r => r.userID !== userID);
+		}
+		
+	// Add user to new emoji reaction
+	if (!reactions[emoji]) {
+		reactions[emoji] = [];
+	}
+	reactions[emoji].push({ userID, username });
+
+	// Update data attribute
+	messageElement.setAttribute('data-reactions', JSON.stringify(reactions));
+	
+	// Update the UI
+	updateReactionDisplay(reactionContainer, reactions);
+	}
+
+	setupEmojiPicker();
+  
+	// Add emoji button next to the message input
+	const emojiButton = document.createElement('button');
+	emojiButton.classList.add('btn', 'btn-secondary', 'ms-1');
+	emojiButton.innerHTML = '<i class="far fa-smile"></i>';
+	emojiButton.id = 'emojiButton';
+	
+	// Insert it after the image icon button
+	const imageIconButton = document.getElementById('imageIcon');
+	if (imageIconButton && imageIconButton.parentNode) {
+		imageIconButton.parentNode.insertBefore(emojiButton, imageIconButton.nextSibling);
+	}
+	
+	// Set up emoji button click handler
+	emojiButton.addEventListener('click', function() {
+		const messageInput = document.getElementById('messageInput');
+		
+		// Create a separate picker for inserting emojis into messages
+		if (!window.messageEmojiPicker) {
+		window.messageEmojiPicker = new EmojiButton({
+			position: 'top-start',
+			theme: 'auto',
+			autoHide: true
+		});
+		
+		window.messageEmojiPicker.on('emoji', emoji => {
+			// Insert emoji at cursor position
+			const cursorPos = messageInput.selectionStart;
+			const textBeforeCursor = messageInput.value.substring(0, cursorPos);
+			const textAfterCursor = messageInput.value.substring(cursorPos);
+			
+			messageInput.value = textBeforeCursor + emoji + textAfterCursor;
+			
+			// Move cursor position after the inserted emoji
+			messageInput.selectionStart = cursorPos + emoji.length;
+			messageInput.selectionEnd = cursorPos + emoji.length;
+			messageInput.focus();
+		});
+		}
+		
+		window.messageEmojiPicker.togglePicker(emojiButton);
+	});
+
 	function sendMessage(message, file) {
 		if (!message.trim() && !file) return;
 
@@ -358,6 +460,7 @@ function setupChat(data) {
 			nameElement.classList.add('message-name');
 			messageWrapper.appendChild(nameElement);
 		}
+
 		const messageElement = document.createElement('div');
 		messageElement.textContent = msg.message;
 		messageElement.classList.add('message-box');
@@ -434,6 +537,32 @@ function setupChat(data) {
 			messageWrapper.setAttribute('data-message-id', msg.messageID);
 		}
 
+		// Add the reaction button
+		const reactionButton = document.createElement('button');
+		reactionButton.classList.add('reaction-button');
+		reactionButton.innerHTML = '<i class="far fa-smile"></i>';
+		reactionButton.title = "Add reaction";
+			
+		// Add reaction container (will contain all reactions)
+		const reactionContainer = document.createElement('div');
+		reactionContainer.classList.add('reaction-container');
+		messageWrapper.setAttribute('data-reactions', '{}'); // Initialize empty reactions
+			
+		// Event listener for the reaction button
+		reactionButton.addEventListener('click', function(e) {
+			e.preventDefault();
+			e.stopPropagation();
+				
+			currentReactionTarget = this;
+
+			console.log("Works here", emojiPicker);
+				
+			// Show the emoji picker
+			if (emojiPicker) {
+				emojiPicker.togglePicker(reactionButton);
+			}
+		});
+
 		if (msg.senderID === userId) {
 			statusIndicator.innerHTML = '<i class="fas fa-check"></i>'; // Initial "sent" status
 			statusIndicator.title = 'Sent';
@@ -442,9 +571,13 @@ function setupChat(data) {
 			statusContainer.appendChild(statusIndicator);
 			messageWrapper.appendChild(messageElement);
 			messageWrapper.appendChild(statusContainer);
+			messageWrapper.appendChild(reactionButton);
+    		messageWrapper.appendChild(reactionContainer);
 		} else {
 			// For messages received, don't add status indicators
 			messageWrapper.appendChild(messageElement);
+			messageWrapper.appendChild(reactionButton);	
+    		messageWrapper.appendChild(reactionContainer);
 		}
 
 		// Append message to the container
@@ -455,6 +588,14 @@ function setupChat(data) {
 
 		lastSenderId = msg.senderID;
 
+		// Fetch reactions for this message
+		if (msg.messageID) {
+			socket.emit('getMessageReactions', {
+			  messageID: msg.messageID,
+			  chatType: currentChatGroupID ? 'group' : 'private'
+			});
+		}
+		
 		messages.scrollTop = messages.scrollHeight;
 	}
 
@@ -1148,6 +1289,152 @@ function setupChat(data) {
 	});
 }
 
+// Setup emoji library when the document is ready
+function setupEmojiPicker() {
+	// We'll use the picker-emoji library which is CDN available
+	if (typeof EmojiButton !== 'undefined') {
+	  // Initialize global emoji picker
+	  emojiPicker = new EmojiButton({
+		position: 'top-start',
+		theme: 'auto',
+		autoHide: true,
+		emojiSize: '1.5rem'
+	  });
+  
+	  // Handle emoji selection
+	  emojiPicker.on('emoji', emoji => {
+		if (currentReactionTarget) {
+		  const messageElement = currentReactionTarget.closest('[data-message-id]');
+		  const messageID = messageElement.getAttribute('data-message-id');
+		  
+		  // Determine if this is a group or private chat
+		  const chatType = currentChatGroupID ? 'group' : 'private';
+		  
+		  // Send the reaction to the server
+		  socket.emit('addReaction', {
+			messageID,
+			userID: userId,
+			emoji: emoji,
+			chatType,
+			groupID: currentChatGroupID,
+			receiverID: currentChatUserID
+		  });
+		}
+		currentReactionTarget = null;
+	  });
+	}
+}
+
+function handleReactionRemoved({ messageID, userID, emoji, chatType }) {
+	const messageElement = document.querySelector(`[data-message-id="${messageID}"]`);
+	if (!messageElement) return;
+	
+	// Get the reaction container
+	const reactionContainer = messageElement.querySelector('.reaction-container');
+	if (!reactionContainer) return;
+	
+	// Get current reactions
+	let reactions = {};
+	try {
+	  reactions = JSON.parse(messageElement.getAttribute('data-reactions') || '{}');
+	} catch (e) {
+	  reactions = {};
+	}
+	
+	// Remove this reaction
+	if (reactions[emoji]) {
+	  reactions[emoji] = reactions[emoji].filter(r => r.userID !== userID);
+	  if (reactions[emoji].length === 0) {
+		delete reactions[emoji];
+	  }
+	}
+	
+	// Update data attribute
+	messageElement.setAttribute('data-reactions', JSON.stringify(reactions));
+	
+	// Update the UI
+	updateReactionDisplay(reactionContainer, reactions);
+  }
+  
+  function handleMessageReactions({ messageID, reactions }) {
+	const messageElement = document.querySelector(`[data-message-id="${messageID}"]`);
+	if (!messageElement) return;
+	
+	// Get the reaction container
+	const reactionContainer = messageElement.querySelector('.reaction-container');
+	if (!reactionContainer) return;
+	
+	// Transform reactions into the format we use
+	let formattedReactions = {};
+	reactions.forEach(r => {
+	  if (!formattedReactions[r.emoji]) {
+		formattedReactions[r.emoji] = [];
+	  }
+	  formattedReactions[r.emoji].push({ userID: r.userID, username: r.username });
+	});
+	
+	// Update data attribute
+	messageElement.setAttribute('data-reactions', JSON.stringify(formattedReactions));
+	
+	// Update the UI
+	updateReactionDisplay(reactionContainer, formattedReactions);
+  }
+  
+  function updateReactionDisplay(container, reactions) {
+	// Clear the container
+	container.innerHTML = '';
+	
+	// Add each emoji reaction
+	Object.keys(reactions).forEach(emoji => {
+	  if (reactions[emoji].length > 0) {
+		const reactionBubble = document.createElement('div');
+		reactionBubble.classList.add('reaction-bubble');
+		
+		// Emoji + count
+		reactionBubble.innerHTML = `${emoji} <span class="reaction-count">${reactions[emoji].length}</span>`;
+		
+		// Add title with names of reactors
+		const reactorNames = reactions[emoji].map(r => r.username).join(', ');
+		reactionBubble.title = reactorNames;
+		
+		// Allow toggling your own reactions
+		reactionBubble.addEventListener('click', function() {
+		  const messageElement = container.closest('[data-message-id]');
+		  const messageID = messageElement.getAttribute('data-message-id');
+		  const chatType = currentChatGroupID ? 'group' : 'private';
+		  
+		  // Check if the current user has already reacted with this emoji
+		  const userReacted = reactions[emoji].some(r => r.userID === userId);
+		  
+		  if (userReacted) {
+			// Remove reaction
+			socket.emit('removeReaction', {
+			  messageID,
+			  userID: userId,
+			  emoji,
+			  chatType,
+			  groupID: currentChatGroupID,
+			  receiverID: currentChatUserID
+			});
+		  } else {
+			// Add reaction
+			socket.emit('addReaction', {
+			  messageID,
+			  userID: userId,
+			  emoji,
+			  chatType,
+			  groupID: currentChatGroupID,
+			  receiverID: currentChatUserID
+			});
+		  }
+		});
+		
+		container.appendChild(reactionBubble);
+	  }
+	});
+}
+  
+  
 function openImageModal(src) {
 	const modal = document.getElementById('imageModal');
 	const expandedImg = document.getElementById('expandedImage');

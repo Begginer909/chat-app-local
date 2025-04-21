@@ -421,3 +421,78 @@ a {
     font-weight: bold;
 }
 
+/* Reaction button styling */
+.reaction-button {
+    border: none;
+    background: transparent;
+    color: #6c757d;
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    font-size: 12px;
+    cursor: pointer;
+    opacity: 0.3;
+    transition: opacity 0.2s;
+    margin-top: 4px;
+    margin-left: 4px;
+    vertical-align: middle;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .reaction-button:hover {
+    opacity: 1;
+    background-color: #f0f0f0;
+  }
+  
+  /* Show reaction button only on hover */
+  .message-wrapper .reaction-button {
+    display: none;
+  }
+  
+  .message-wrapper:hover .reaction-button {
+    display: inline-flex;
+  }
+
+  /* Reaction container styling */
+  .reaction-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 5px;
+    margin-bottom: 2px;
+  }
+  
+  /* Individual reaction bubble */
+  .reaction-bubble {
+    background-color: #f0f0f0;
+    border-radius: 12px;
+    padding: 2px 6px;
+    font-size: 12px;
+    display: inline-flex;
+    align-items: center;
+    cursor: pointer;
+    transition: background-color 0.2s;
+  }
+  
+  .reaction-bubble:hover {
+    background-color: #e0e0e0;
+  }
+  
+  .reaction-count {
+    margin-left: 3px;
+    font-size: 11px;
+    color: #666;
+  }
+  
+  /* Adjustments for emoji picker */
+  .emoji-picker {
+    z-index: 1000;
+  }
+  
+  /* Make sure emoji button in message input is visible */
+  #emojiButton {
+    margin-right: 5px;
+  }
+

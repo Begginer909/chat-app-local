@@ -475,6 +475,161 @@ export function initializeSocket(io) {
 			}
 		});
 
+		// Handle emoji reactions
+		socket.on('addReaction', ({ messageID, userID, emoji, chatType, groupID, receiverID }) => {
+			// Get username of the reactor
+			db.query('SELECT username FROM users WHERE userID = ?', [userID], (err, results) => {
+			if (err || results.length === 0) {
+				console.error('Error getting username:', err);
+				return;
+			}
+			
+			const reactorUsername = results[0].username;
+			
+			// Insert the reaction into the database
+			db.query(
+				'INSERT INTO message_reactions (messageID, userID, emoji, chatType) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE emoji = VALUES(emoji)',
+				[messageID, userID, emoji, chatType],
+				(err, result) => {
+				if (err) {
+					console.error('Error adding reaction:', err);
+					return;
+				}
+				
+				// Determine which users should receive the reaction update
+				if (chatType === 'private') {
+					// Get the sender of the original message
+					db.query('SELECT senderID, receiverID FROM private WHERE messageID = ?', [messageID], (err, msgResult) => {
+					if (err || msgResult.length === 0) {
+						console.error('Error finding message:', err);
+						return;
+					}
+					
+					const originalSenderID = msgResult[0].senderID;
+					const originalReceiverID = msgResult[0].receiverID;
+					
+					// Emit to both the sender and receiver of the original message
+					io.to(`private_${originalSenderID}`).emit('reactionUpdate', {
+						messageID,
+						userID,
+						username: reactorUsername,
+						emoji,
+						chatType
+					});
+					
+					io.to(`private_${originalReceiverID}`).emit('reactionUpdate', {
+						messageID,
+						userID,
+						username: reactorUsername,
+						emoji,
+						chatType
+					});
+					
+					// Update recent chats if needed
+					db.query(recentChatQuery, [originalSenderID, originalSenderID, originalSenderID, originalSenderID], 
+						(err, senderResult) => {
+						if (!err) {
+							io.to(`private_${originalSenderID}`).emit('recentChatResult', senderResult);
+						}
+					});
+					
+					db.query(recentChatQuery, [originalReceiverID, originalReceiverID, originalReceiverID, originalReceiverID], 
+						(err, receiverResult) => {
+						if (!err) {
+							io.to(`private_${originalReceiverID}`).emit('recentChatResult', receiverResult);
+						}
+					});
+					});
+				} else if (chatType === 'group') {
+					// Emit to all group members
+					io.to(`group_${groupID}`).emit('reactionUpdate', {
+					messageID,
+					userID,
+					username: reactorUsername,
+					emoji,
+					chatType,
+					groupID
+					});
+					
+					console.log("Hello World------------------------------------------");
+				}
+					}
+				);
+			});
+		});
+		
+		// Handle removing reactions
+		socket.on('removeReaction', ({ messageID, userID, emoji, chatType, groupID, receiverID }) => {
+			// Delete the reaction from the database
+			db.query(
+			'DELETE FROM message_reactions WHERE messageID = ? AND userID = ? AND emoji = ? AND chatType = ?',
+			[messageID, userID, emoji, chatType],
+			(err, result) => {
+				if (err) {
+				console.error('Error removing reaction:', err);
+				return;
+				}
+				
+				// Determine which users should receive the reaction update
+				if (chatType === 'private') {
+				// Get the sender and receiver of the original message
+				db.query('SELECT senderID, receiverID FROM private WHERE messageID = ?', [messageID], (err, msgResult) => {
+					if (err || msgResult.length === 0) {
+					console.error('Error finding message:', err);
+					return;
+					}
+					
+					const originalSenderID = msgResult[0].senderID;
+					const originalReceiverID = msgResult[0].receiverID;
+					
+					// Emit to both the sender and receiver
+					io.to(`private_${originalSenderID}`).emit('reactionRemoved', {
+					messageID,
+					userID,
+					emoji,
+					chatType
+					});
+					
+					io.to(`private_${originalReceiverID}`).emit('reactionRemoved', {
+					messageID,
+					userID,
+					emoji,
+					chatType
+					});
+				});
+				} else if (chatType === 'group') {
+				// Emit to all group members
+				io.to(`group_${groupID}`).emit('reactionRemoved', {
+					messageID,
+					userID,
+					emoji,
+					chatType,
+					groupID
+				});
+				}
+			}
+			);
+		});
+
+		// Add a handler for fetching existing reactions when loading chat history
+		socket.on('getMessageReactions', ({ messageID, chatType }) => {
+			db.query(
+			'SELECT mr.emoji, mr.userID, u.username FROM message_reactions mr JOIN users u ON mr.userID = u.userID WHERE mr.messageID = ? AND mr.chatType = ?',
+			[messageID, chatType],
+			(err, reactions) => {
+				if (err) {
+				console.error('Error fetching reactions:', err);
+				return;
+				}
+				
+				socket.emit('messageReactions', {
+				messageID,
+				reactions
+				});
+			}
+			);
+		});
+
 		socket.on('disconnect', () => {
 			let disconnectedUserID = null;
 
