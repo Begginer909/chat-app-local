@@ -165,16 +165,20 @@ function setupChat(data) {
 			// For private messages, check if this chat is currently active
 			if (senderID === currentChatUserID || (receiverID === currentChatUserID && senderID === userId)) {
 				displayMessage({ senderID, receiverID, username, message, messageType, fileUrl, messageID });
-				//console.log(`Sender: ${senderID} currentChatUserID ${currentChatUserID} receiverID ${receiverID} userId ${userId}`);
+				console.log(`Sender: ${senderID} currentChatUserID ${currentChatUserID} receiverID ${receiverID} userId ${userId} messageID ${messageID}`);
+				console.log(typeof senderID, typeof currentChatUserID, typeof receiverID, typeof userId);
 
+				
 				// Only mark as seen if this is an incoming message AND the group chat is active
-				if (senderID !== userId && messageID && groupID === currentChatGroupID) {
+				if (senderID !== userId && !currentChatGroupID) {
 					socket.emit('seenMessage', {
 						messageID: messageID,
 						senderID: senderID,
 						userID: userId,
 						chatType: 'private',
 					});
+
+					console.log("Works fines here", messageID);
 				}
 			}
 		} else if (chatType === 'group') {
@@ -495,7 +499,6 @@ function setupChat(data) {
 				const textSpan = document.createElement('span');
 				textSpan.classList.add('ms-2', 'flex-grow-1');
 				chatName.classList.add('fw-bold');
-				
 				if (chat.chatType === 'private') {
 					textSpan.textContent = `${chat.firstname} ${chat.lastname}`;
 					chatNameUsers = `${chat.firstname} ${chat.lastname}`;

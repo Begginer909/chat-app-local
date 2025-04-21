@@ -9,7 +9,7 @@ export function initializeSocket(io) {
 
 		// Register user and store their socket ID
 		socket.on('register', (userID) => {
-			users.set(String(userID), socket.id);
+			users.set(userID, socket.id);
 			console.log(`User ${userID} registered with socket ${socket.id}`);
 
 			// Update user status to online in database
@@ -20,11 +20,11 @@ export function initializeSocket(io) {
 				}
 
 				// Convert all user IDs to strings before sending
-				const onlineUsers = Array.from(users.keys()).map(id => String(id));
+				const onlineUsers = Array.from(users.keys()).map(id => id);
 				socket.emit('onlineUsers', onlineUsers);
 				
 				// Broadcast to all users that this user is now online
-				socket.broadcast.emit('statusUpdate', { userID: String(userID), status: 'online' });
+				socket.broadcast.emit('statusUpdate', { userID: userID, status: 'online' });
 
 				// Update group status for all groups this user is a member of
 				updateGroupStatus(userID, 'online', io);
@@ -140,6 +140,8 @@ export function initializeSocket(io) {
 									});
 
 									const receiverSocketId = receiverSocket();
+
+									console.log('receiver socket: ', receiverSocketId);
 
 									if (receiverSocketId) {
 										// Update for receiver
@@ -392,6 +394,9 @@ export function initializeSocket(io) {
 					else {
 						// Notify sender that message was seen
 						const senderSocket = users.get(senderID);
+
+						console.log(`${senderID} and ${senderSocket}--222sss`);
+
 						if (senderSocket) {
 							console.log(`${senderID} and ${senderSocket}`);
 							io.to(`private_${senderID}`).emit('messageStatus', {
