@@ -406,9 +406,18 @@ a {
     margin-left: 5px;
 }
 
+#chat-status-indicator.online{
+    background-color: #28a745; /* Green for online */
+}
+
+
+#chat-status-indicator.offline{
+    background-color: #6c757d; /* Grey for offline */
+}
+
 #group-status-text {
-    margin-left: 5px;
     font-size: 0.8em;
     color: #7f8c8d;
+    font-weight: bold;
 }
 

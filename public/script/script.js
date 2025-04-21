@@ -494,7 +494,8 @@ function setupChat(data) {
 				// Text wrapper for the username
 				const textSpan = document.createElement('span');
 				textSpan.classList.add('ms-2', 'flex-grow-1');
-
+				chatName.classList.add('fw-bold');
+				
 				if (chat.chatType === 'private') {
 					textSpan.textContent = `${chat.firstname} ${chat.lastname}`;
 					chatNameUsers = `${chat.firstname} ${chat.lastname}`;
@@ -538,10 +539,14 @@ function setupChat(data) {
 
 			// Update group header after setting the current group
 			updateGroupHeader(currentChatGroupID);
+			console.log("Here works");
 		} else {
 			currentChatUserID = otherUserID; // Set private chat ID
 			currentChatGroupID = null; // Reset group chat ID
 			console.log(`Set currentChatUserID=${currentChatUserID}, cleared currentChatGroupID`);
+
+			updateHeaderStatus();
+
 		}
 
 		socket.emit('activateChat', {
@@ -840,9 +845,9 @@ function setupChat(data) {
 		const userIdString = String(userID);
 
 		if (status === 'online') {
-			onlineUsers.add(userID);
+			onlineUsers.add(userIdString);
 		} else {
-			onlineUsers.delete(userID);
+			onlineUsers.delete(userIdString);
 		}
 		
 		console.log('Hello World ');
@@ -882,12 +887,14 @@ function setupChat(data) {
 				).length;
 				const totalCount = members.length;
 
+				/*
 				console.log(`Online Count: ${onlineCount} groupID: ${groupID}`);
 				console.log('onlineUsers Set:', Array.from(onlineUsers));
 				console.log(
 					'member IDs:',
 					members.map((m) => String(m.userID))
 				);
+				*/
 
 				// Create status elements if they don't exist
 				let statusText = document.getElementById('group-status-text');
@@ -912,17 +919,20 @@ function setupChat(data) {
 	
 				// Update the status indicator
 				statusIndicator.classList.remove('online', 'offline');
-				statusIndicator.classList.add(onlineCount > 0 ? 'online' : 'offline');
+				statusIndicator.classList.add(onlineCount > 0 ? 'online': 'offline');
 				statusIndicator.style.display = 'inline-block';
+				statusIndicator.title = onlineCount > 0 ? 'Online' : 'Offline';
+
+				console.log(statusIndicator.classList);
 			})
 			.catch((error) => console.error('Error fetching group members:', error));
 	}
 
 	// Enhance the updateUserStatusIndicators function with tooltips
 	function updateUserStatusIndicators() {
-		console.log('Updating status indicators...');
-		console.log('Online users:', Array.from(onlineUsers));
-		console.log('Online groups:', Array.from(onlineGroups.entries()));
+		// console.log('Updating status indicators...');
+		// console.log('Online users:', Array.from(onlineUsers));
+		// console.log('Online groups:', Array.from(onlineGroups.entries()));
 		
 		// Update private chat indicators
 		document.querySelectorAll('.status-indicator[data-user-id]').forEach((indicator) => {
@@ -934,7 +944,7 @@ function setupChat(data) {
 			indicator.classList.add(isOnline ? 'online' : 'offline');
 			indicator.setAttribute('title', isOnline ? 'Online' : 'Offline');
 	
-			console.log(`Updating user ${userID} status to ${isOnline ? 'online' : 'offline'}`);
+			// console.log(`Updating user ${userID} status to ${isOnline ? 'online' : 'offline'}`);
 		});
 	
 		// Update group chat indicators
@@ -947,7 +957,7 @@ function setupChat(data) {
 			indicator.classList.add(hasOnlineMembers ? 'online' : 'offline');
 			indicator.setAttribute('title', hasOnlineMembers ? 'Members online' : 'No members online');
 	
-			console.log(`Updating group ${groupID} status to ${hasOnlineMembers ? 'online' : 'offline'}`);
+			// console.log(`Updating group ${groupID} status to ${hasOnlineMembers ? 'online' : 'offline'}`);
 		});
 	
 		// Update header status indicator
@@ -957,7 +967,7 @@ function setupChat(data) {
 	function updateHeaderStatus() {
 		const statusIndicator = document.getElementById('chat-status-indicator');
 		const groupStatusText = document.getElementById('group-status-text');
-		// Create elements if they don't exist
+		// Create elements if they don't exist 
 		if (!statusIndicator) {
 			const headerElement = document.querySelector('.chat-header');
 			if (!headerElement) return;
@@ -984,16 +994,16 @@ function setupChat(data) {
 		
 		if (!updatedStatusIndicator) return;
 	
-		console.log('Updating header status:', {
-			currentChatUserID,
-			currentChatGroupID,
-			chatType: currentChatGroupID ? 'group' : 'private',
-		});
+		// console.log('Updating header status:', {
+		// 	currentChatUserID,
+		// 	currentChatGroupID,
+		// 	chatType: currentChatGroupID ? 'group' : 'private',
+		// });
 	
 		// Hide both elements initially
 		updatedStatusIndicator.style.display = 'none';
 		if (updatedGroupStatusText) updatedGroupStatusText.style.display = 'none';
-	
+
 		if (currentChatUserID) {
 			console.log(`current: ${currentChatUserID}`);
 			// Private chat
@@ -1002,9 +1012,15 @@ function setupChat(data) {
 			updatedStatusIndicator.style.display = 'inline-block';
 			updatedStatusIndicator.classList.remove('online', 'offline');
 			updatedStatusIndicator.classList.add(isOnline ? 'online' : 'offline');
+
+			groupStatusText.textContent = isOnline ? 'Online' : 'Offline';
+			groupStatusText.style.display = 'inline-block';
+
 		} else if (currentChatGroupID) {
 			// Group chat
 			const hasOnlineMembers = Boolean(onlineGroups.get(currentChatGroupID));
+
+			console.log(`Has online members: ${ hasOnlineMembers }`);
 	
 			updatedStatusIndicator.style.display = 'inline-block';
 			updatedStatusIndicator.classList.remove('online', 'offline');
