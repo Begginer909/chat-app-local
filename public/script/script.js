@@ -574,22 +574,19 @@ function setupChat(data) {
 			statusContainer.appendChild(statusIndicator);
 			messageContentWrapper.appendChild(reactionButton);
 			messageContentWrapper.appendChild(messageElement);
+			messageWrapper.appendChild(reactionContainer);
 			messageWrapper.appendChild(messageContentWrapper);
 			messageWrapper.appendChild(statusContainer);
-			messageWrapper.appendChild(reactionContainer);
 		} else {
 			messageContentWrapper.classList.add('receiver-layout'); // Align left
 			// For messages received, don't add status indicators
+			statusContainer.appendChild(statusIndicator);
 			messageContentWrapper.appendChild(messageElement);
 			messageContentWrapper.appendChild(reactionButton);
+			messageWrapper.appendChild(reactionContainer);
 			messageWrapper.appendChild(messageContentWrapper);
-    		messageWrapper.appendChild(reactionContainer);
+			messageWrapper.appendChild(statusContainer);
 		}
-
-		// Append message to the container
-		statusContainer.appendChild(statusIndicator);
-		messageWrapper.appendChild(messageContentWrapper);
-		messageWrapper.appendChild(statusContainer);
 		messages.appendChild(messageWrapper);
 
 		lastSenderId = msg.senderID;
