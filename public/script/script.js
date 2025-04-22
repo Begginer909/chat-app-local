@@ -540,15 +540,6 @@ function setupChat(data) {
 		reactionButton.classList.add('reaction-button');
 		reactionButton.innerHTML = '<i class="far fa-smile"></i>';
 		reactionButton.title = "Add reaction";
-			
-		// Add reaction container (will contain all reactions)
-		const reactionContainer = document.createElement('div');
-		reactionContainer.classList.add('reaction-container');
-		messageWrapper.setAttribute('data-reactions', '{}'); // Initialize empty reactions
-
-		const containerMessage = document.createElement('div');
-		containerMessage.classList.add('containerMessage', 'd-flex');
-			
 		// Event listener for the reaction button
 		reactionButton.addEventListener('click', function(e) {
 			e.preventDefault();
@@ -565,25 +556,40 @@ function setupChat(data) {
 			}
 		});
 
+		// Add reaction container (will contain all reactions)
+		const reactionContainer = document.createElement('div');
+		reactionContainer.classList.add('reaction-container');
+		messageWrapper.setAttribute('data-reactions', '{}'); // Initialize empty reactions
+
+		const messageContentWrapper = document.createElement('div');
+		messageContentWrapper.classList.add('message-content-wrapper');
+			
 		if (msg.senderID === userId) {
 			statusIndicator.innerHTML = '<i class="fas fa-check"></i>'; // Initial "sent" status
 			statusIndicator.title = 'Sent';
 
+			messageContentWrapper.classList.add('sender-layout'); // Align right
+
 			// Append the status container to the message
 			statusContainer.appendChild(statusIndicator);
-			containerMessage.appendChild(messageElement);
-			containerMessage.appendChild(reactionButton);
-			messageWrapper.appendChild(containerMessage);
+			messageContentWrapper.appendChild(reactionButton);
+			messageContentWrapper.appendChild(messageElement);
+			messageWrapper.appendChild(messageContentWrapper);
 			messageWrapper.appendChild(statusContainer);
-		} else {
-			// For messages received, don't add status indicators
 			messageWrapper.appendChild(reactionContainer);
-			containerMessage.appendChild(messageElement);
-			containerMessage.appendChild(reactionButton);
-			messageWrapper.appendChild(containerMessage);
+		} else {
+			messageContentWrapper.classList.add('receiver-layout'); // Align left
+			// For messages received, don't add status indicators
+			messageContentWrapper.appendChild(messageElement);
+			messageContentWrapper.appendChild(reactionButton);
+			messageWrapper.appendChild(messageContentWrapper);
+    		messageWrapper.appendChild(reactionContainer);
 		}
 
-		messageWrapper.appendChild(messageElement);
+		// Append message to the container
+		statusContainer.appendChild(statusIndicator);
+		messageWrapper.appendChild(messageContentWrapper);
+		messageWrapper.appendChild(statusContainer);
 		messages.appendChild(messageWrapper);
 
 		lastSenderId = msg.senderID;

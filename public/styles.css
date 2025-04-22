@@ -424,14 +424,14 @@ a {
 /* Reaction button styling */
 .reaction-button {
     border: none;
-    background: transparent;
-    color: #6c757d;
+    background: none;
+    color: #666;
     border-radius: 50%;
-    width: 24px;
-    height: 24px;
-    font-size: 12px;
+    width: 30px;
+    height: 30px;
+    font-size: 1.2em;
     cursor: pointer;
-    opacity: 0.3;
+    opacity: 1;
     transition: opacity 0.2s;
     margin-top: 4px;
     margin-left: 4px;
@@ -444,15 +444,6 @@ a {
   .reaction-button:hover {
     opacity: 1;
     background-color: #f0f0f0;
-  }
-  
-  /* Show reaction button only on hover */
-  .message-wrapper .reaction-button {
-    display: none;
-  }
-  
-  .message-wrapper:hover .reaction-button {
-    display: inline-flex;
   }
 
   /* Reaction container styling */
@@ -469,7 +460,9 @@ a {
     background-color: #f0f0f0;
     border-radius: 12px;
     padding: 2px 6px;
-    font-size: 12px;
+    width: 30px;
+    height: 30px;
+    font-size: 15px;
     display: inline-flex;
     align-items: center;
     cursor: pointer;
@@ -495,4 +488,20 @@ a {
   #emojiButton {
     margin-right: 5px;
   }
+
+  .message-content-wrapper {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+/* Align sender message to the right */
+.sender-layout {
+	justify-content: flex-end;
+}
+
+/* Align receiver message to the left */
+.receiver-layout {
+	justify-content: flex-start;
+}
 
