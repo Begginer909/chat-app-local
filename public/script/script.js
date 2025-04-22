@@ -324,8 +324,6 @@ function setupChat(data) {
 	if (userIndex === -1) {
 		reactions[emoji].push({ userID, username });
 		console.log("Hello there 2");
-
-		alert("Test");
 	}
 	
 	// Remove user from all existing emoji reactions
@@ -547,6 +545,9 @@ function setupChat(data) {
 		const reactionContainer = document.createElement('div');
 		reactionContainer.classList.add('reaction-container');
 		messageWrapper.setAttribute('data-reactions', '{}'); // Initialize empty reactions
+
+		const containerMessage = document.createElement('div');
+		containerMessage.classList.add('containerMessage', 'd-flex');
 			
 		// Event listener for the reaction button
 		reactionButton.addEventListener('click', function(e) {
@@ -559,6 +560,7 @@ function setupChat(data) {
 				
 			// Show the emoji picker
 			if (emojiPicker) {
+				console.log("Works here", emojiPicker);
 				emojiPicker.togglePicker(reactionButton);
 			}
 		});
@@ -569,21 +571,19 @@ function setupChat(data) {
 
 			// Append the status container to the message
 			statusContainer.appendChild(statusIndicator);
-			messageWrapper.appendChild(messageElement);
+			containerMessage.appendChild(messageElement);
+			containerMessage.appendChild(reactionButton);
+			messageWrapper.appendChild(containerMessage);
 			messageWrapper.appendChild(statusContainer);
-			messageWrapper.appendChild(reactionButton);
-    		messageWrapper.appendChild(reactionContainer);
 		} else {
 			// For messages received, don't add status indicators
-			messageWrapper.appendChild(messageElement);
-			messageWrapper.appendChild(reactionButton);	
-    		messageWrapper.appendChild(reactionContainer);
+			messageWrapper.appendChild(reactionContainer);
+			containerMessage.appendChild(messageElement);
+			containerMessage.appendChild(reactionButton);
+			messageWrapper.appendChild(containerMessage);
 		}
 
-		// Append message to the container
-		statusContainer.appendChild(statusIndicator);
 		messageWrapper.appendChild(messageElement);
-		messageWrapper.appendChild(statusContainer);
 		messages.appendChild(messageWrapper);
 
 		lastSenderId = msg.senderID;
@@ -1300,6 +1300,8 @@ function setupEmojiPicker() {
 		autoHide: true,
 		emojiSize: '1.5rem'
 	  });
+
+		console.log("Emoji container here");
   
 	  // Handle emoji selection
 	  emojiPicker.on('emoji', emoji => {
@@ -1354,9 +1356,9 @@ function handleReactionRemoved({ messageID, userID, emoji, chatType }) {
 	
 	// Update the UI
 	updateReactionDisplay(reactionContainer, reactions);
-  }
+}
   
-  function handleMessageReactions({ messageID, reactions }) {
+function handleMessageReactions({ messageID, reactions }) {
 	const messageElement = document.querySelector(`[data-message-id="${messageID}"]`);
 	if (!messageElement) return;
 	
@@ -1378,9 +1380,9 @@ function handleReactionRemoved({ messageID, userID, emoji, chatType }) {
 	
 	// Update the UI
 	updateReactionDisplay(reactionContainer, formattedReactions);
-  }
+}
   
-  function updateReactionDisplay(container, reactions) {
+function updateReactionDisplay(container, reactions) {
 	// Clear the container
 	container.innerHTML = '';
 	

@@ -74,15 +74,15 @@ body {
     display: flex;
     flex-direction: column;
     align-items: flex-end;
+    text-align: right;
 }
-
-
 
 /* Other users' messages (aligned left) */
 .other-message {
     display: flex;
     flex-direction: column;
     align-items: flex-start;
+    text-align: left;
 }
 
 /* The actual chat bubble */

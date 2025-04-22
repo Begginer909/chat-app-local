@@ -179,23 +179,56 @@ export function initializeSocket(io) {
 							}
 						});
 					} else {
-						// For file messages, just broadcast to all clients since DB insert was done in the upload endpoint
-						//io.emit('newMessage', { senderID, receiverID, username, message, messageType, fileUrl, groupID, chatType, messageID });
-						// For file messages, broadcast to relevant users
-						const messageData = {
-							senderID,
-							receiverID,
-							username,
-							message,
-							messageType,
-							fileUrl,
-							groupID,
-							chatType,
-							messageID,
-						};
+						// File message in private chat
+						// Fetch the inserted message (assuming it was inserted during upload)
+						db.query(
+							'SELECT messageID FROM private WHERE senderID = ? AND receiverID = ? AND fileUrl = ? ORDER BY sentAt DESC LIMIT 1',
+							[senderID, receiverID, fileUrl],
+							(err, results) => {
+								if (err || results.length === 0) {
+									console.error('Error finding message ID for private file:', err);
+									return;
+								}
 
-						io.to(`private_${senderID}`).emit('newMessage', messageData);
-						io.to(`private_${receiverID}`).emit('newMessage', messageData);
+								const messageID = results[0].messageID;
+
+								// Create receipt
+								db.query('INSERT INTO private_message_receipts (messageID, status) VALUES (?, ?)', [messageID, 'sent'], (err) => {
+									if (err) {
+										console.error('Error creating receipt record for file/image: ', err);
+										return;
+									}
+
+									const messageData = {
+										senderID,
+										receiverID,
+										username,
+										message,
+										messageType,
+										fileUrl,
+										groupID,
+										chatType,
+										messageID,
+									};
+
+									io.to(`private_${senderID}`).emit('newMessage', messageData);
+									io.to(`private_${receiverID}`).emit('newMessage', messageData);
+
+									const receiverSocketId = receiverSocket();
+									if (receiverSocketId) {
+										db.query('UPDATE private_message_receipts SET status = ?, statusChangedAt = NOW() WHERE messageID = ?', ['delivered', messageID], (err) => {
+											if (!err) {
+												io.to(`private_${senderID}`).emit('messageStatus', {
+													messageID,
+													status: 'delivered',
+													receiverID,
+												});
+											}
+										});
+									}
+								});
+							}
+						);
 					}
 				} else if (chatType === 'group') {
 					query = 'INSERT INTO messages (senderID, message, messageType, fileUrl, groupID) VALUES (?, ?, ?, ?, ?)';
