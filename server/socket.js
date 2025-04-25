@@ -576,12 +576,12 @@ export function initializeSocket(io) {
 				} else if (chatType === 'group') {
 					// Emit to all group members
 					io.to(`group_${groupID}`).emit('reactionUpdate', {
-					messageID,
-					userID,
-					username: reactorUsername,
-					emoji,
-					chatType,
-					groupID
+						messageID,
+						userID,
+						username: reactorUsername,
+						emoji,
+						chatType,
+						groupID
 					});
 					
 					console.log("Hello World------------------------------------------");

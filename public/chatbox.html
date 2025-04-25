@@ -20,34 +20,44 @@
     </style>
 </head>
 <body>
-    <div class="container-xl">
-        <p>Hello <span id="username"></span></p>
-        <div class="chat-container">
-            <div class="chat-header">
-                <button class="btn btn-danger logout-btn"  data-bs-toggle="modal" data-bs-target="#logoutModal">Logout</button>
-            </div>
-            
-            <div class="row">
-                <div class="col-3 g-3 border-end pe-3">
-                    <div class="d-flex">
-                        <input type="search" id="search" class="form-control me-2" placeholder="Search People">
-                        <button type="button" id="createGroup" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#groupModal">
-                            <i class="fa-solid fa-plus"></i>
-                        </button>
+    <div class="container-lg mx-2">
+
+            <div class="chat-container row">
+                <div class="chat-header d-flex col-12 justify-content-between align-items-center">
+                    <p>Hello <span id="username"></span></p>
+                    <button class="btn btn-danger"  data-bs-toggle="modal" data-bs-target="#logoutModal">Logout</button>
+                </div> <hr class="mb-1 mt-2">
+                <div class="sidebar col-3 col-md-3 bg-light" id="sidebar">
+                    <!-- Optional: add a close button inside -->
+                    <button class="btn-close d-md-none" onclick="toggleSidebar()"></button>
+                    <!-- User list here -->
+                    <div class="g-3 border-end pe-3">
+                        <div class="d-flex">
+                            <input type="search" id="search" class="form-control me-2" placeholder="Search People">
+                            <button type="button" id="createGroup" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#groupModal">
+                                <i class="fa-solid fa-plus"></i>
+                            </button>
+                        </div>
+                        <hr>
+                        <div id="searchResults"></div>
+                        <div id="recentchats"></div>
                     </div>
-                    <hr>
-                    <div id="searchResults"></div>
-                    <div id="recentchats"></div>
                 </div>
-                <div class="col-9">
-                    <div class="username pt-3">
+                  <!-- Chat Panel -->
+                <div class="chat-panel col-12 col-md-9 flex-grow-1 position-relative">
+                    <!-- Toggle button for mobile -->
+                    <button class="btn btn-primary d-md-none position-absolute top-0 start-0 m-2" onclick="toggleSidebar()">☰</button>
+    
+                    <!-- Chat header, messages, input, etc. -->
+                    <div class="chat-header pt-3">
                         <p id="name" class="mb-1 ms-2"></p>
                         <span id="chat-status-indicator" class="ms-2 status-indicator"></span>
                         <span id="group-status-text" class="small text-muted"></span>
                         <hr class="mt-0">
                     </div>
                     <div class="chat-body">
-                        <div id="messages"></div>
+                        <div id="messages">
+                        </div>
                         <div id="typingIndicator" class="typing-indicator" style="display:none;"></div>
                     </div>
                     <div class="chat-footer">
@@ -75,7 +85,7 @@
                     </div>
                 </div>
             </div>
-        </div>
+
     </div>
 
     <div id="imageModal" class="modal-image">
@@ -131,6 +141,11 @@
         </div>
     </div>
 
+    <script>
+        function toggleSidebar() {
+            document.getElementById("sidebar").classList.toggle("active");
+        }
+    </script>
     <script src="http://localhost:3000/socket.io/socket.io.js"></script>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>

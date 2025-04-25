@@ -631,7 +631,6 @@ function setupChat(data) {
 				} else {
 					statusIndicator.setAttribute('data-group-id', chat.userID);
 					// Set initial status for group
-					const isGroupOnline = onlineGroups.get(parseInt(chat.userID)) || false;
 					statusIndicator.classList.add(onlineGroups.get(chat.userID) ? 'online' : 'offline');
 				}
 
@@ -658,6 +657,7 @@ function setupChat(data) {
 				// Fetch all messages for this user on click
 				button.addEventListener('click', () => {
 					fetchChatHistory(chat.userID, chat.chatType);
+					document.getElementById("sidebar").classList.remove("active");
 					chatName.textContent = `${chatNameUsers}`;
 
 					// Remove hover-effect class from all buttons
@@ -1048,7 +1048,7 @@ function setupChat(data) {
 				if (!statusText) {
 					statusText = document.createElement('span');
 					statusText.id = 'group-status-text';
-					statusText.className = 'ml-2';
+					statusText.className = 'ms-2';
 					document.querySelector('.chat-header').appendChild(statusText);
 				}
 	
@@ -1056,7 +1056,7 @@ function setupChat(data) {
 				if (!statusIndicator) {
 					statusIndicator = document.createElement('span');
 					statusIndicator.id = 'chat-status-indicator';
-					statusIndicator.className = 'status-indicator ml-2';
+					statusIndicator.className = 'status-indicator ms-2';
 					document.querySelector('.chat-header').appendChild(statusIndicator);
 				}
 	
@@ -1070,7 +1070,7 @@ function setupChat(data) {
 				statusIndicator.style.display = 'inline-block';
 				statusIndicator.title = onlineCount > 0 ? 'Online' : 'Offline';
 
-				console.log(statusIndicator.classList);
+				//console.log(statusIndicator.classList);
 			})
 			.catch((error) => console.error('Error fetching group members:', error));
 	}
@@ -1121,7 +1121,7 @@ function setupChat(data) {
 			
 			const newStatusIndicator = document.createElement('span');
 			newStatusIndicator.id = 'chat-status-indicator';
-			newStatusIndicator.className = 'status-indicator ml-2';
+			newStatusIndicator.className = 'status-indicator ms-2';
 			headerElement.appendChild(newStatusIndicator);
 		}
 
@@ -1131,7 +1131,7 @@ function setupChat(data) {
 			
 			const newStatusText = document.createElement('span');
 			newStatusText.id = 'group-status-text';
-			newStatusText.className = 'ml-2';
+			newStatusText.className = 'ms-2';
 			headerElement.appendChild(newStatusText);
 		}
 

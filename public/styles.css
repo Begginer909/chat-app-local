@@ -3,6 +3,7 @@
         border: 1px solid black;
         font-family: Arial, Helvetica, sans-serif;
         max-width: 100vw;
+        min-height: 10vh;
     }
 }
 
@@ -17,12 +18,33 @@
     }
 }
 
+@media (max-width: 768px) {
+    .sidebar {
+      position: fixed;
+      top: 10px;
+      bottom: 0;
+      left: 0;
+      background: #fff;
+      z-index: 1;
+      transform: translateX(-100%);
+    }
+    .sidebar.active{
+      transform: translateX(0);
+      max-width: 60vw;
+      width: fit-content;
+      min-width: 300px;
+    }
+    .chat-header {
+        padding-left: 3rem; /* creates space for the hamburger */
+    }
+    
+}
+
 body {
     font-family: Arial, sans-serif;
     display: flex;
     justify-content: center;
     align-items: center;
-    height: 100vh;
     background: #f4f4f4;
 }
 
@@ -31,16 +53,37 @@ body {
     padding: 20px;
     border-radius: 8px;
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    height: 100vh;
+    overflow: hidden;
 }
 
+.chat-panel {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.chat-body{
+    flex-grow: 1;
+    overflow-y: auto;
+    max-height: 65vh;
+    height: fit-content;
+}
+
+.sidebar {
+    overflow-y: auto;
+    transition: transform 0.3s ease;
+  }
+
 #messages {
-    height: 400px;
+    max-height: 60vh;
     overflow-y: auto;
     border-bottom: 1px solid #ccc;
     margin-bottom: 10px;
     padding: 5px;
     display: flex;
     flex-direction: column;
+    
 }
 
 /* Wraps the name and message */
@@ -74,7 +117,7 @@ body {
     display: flex;
     flex-direction: column;
     align-items: flex-end;
-    text-align: right;
+    text-align: justify;
 }
 
 /* Other users' messages (aligned left) */
@@ -89,7 +132,7 @@ body {
 .message-box {
     padding: 10px;
     border-radius: 10px;
-    max-width: 70%;
+    max-width: 100%;
     word-wrap: break-word;
     position: relative;
 }
@@ -285,7 +328,8 @@ a {
 }
 
 #recentchats {
-    max-height: 350px;
+    max-height: 70vh;
+    min-height: auto;
     overflow-y: auto;
 }
 
@@ -331,25 +375,6 @@ a {
     color: #3498db;
 }
 
-  /* Status indicator styling */
-.status-indicator {
-    display: inline-block;
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    margin-right: 8px;
-    position: relative;
-}
-
-.status-indicator.online {
-    background-color: #2ecc71; /* Green for online */
-    box-shadow: 0 0 5px rgba(46, 204, 113, 0.5);
-}
-
-.status-indicator.offline {
-    background-color: #95a5a6; /* Grey for offline */
-}
-
 /* Group status count text */
 #group-status-text {
     font-size: 12px;
@@ -374,7 +399,6 @@ a {
 
 /* In the chat header, style for the current chat user status */
 .chat-header {
-    display: flex;
     align-items: center;
 }
 
