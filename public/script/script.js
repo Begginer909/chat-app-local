@@ -9,6 +9,12 @@ let currentChatGroupID = null;
 let currentChatUserID = null;
 let chatType;
 
+//Lazy loading variables
+let isLoadingMoreMessages = false;
+let noMoreMessages = false;
+let messagesPage = 1;
+const messagesPerPage = 20;
+
 // Add these variables at the top with your other variables
 let typingTimer;
 const typingDelay = 1000; // Delay in ms (1 second)
@@ -1183,14 +1189,26 @@ function setupChat(data) {
 		}
 	}
 
+	//Checking the file size, should be maximum of 10MB 
+	function validateFileSize(file) {
+		const maxSize = 10 * 1024 * 1024; // 10MB in bytes
+		if (file.size > maxSize) {
+		  alert(`File "${file.name}" exceeds the 10MB size limit.`);
+		  return false;
+		}
+		return true;
+	}
+	
 	//Jquery for previewing the images or files when user selects it
 	let selectedFiles = []; // Stores selected files or images
 
 	// Function to add files to array and update preview
 	function addFiles(files) {
 		Array.from(files).forEach((file) => {
-			selectedFiles.push(file);
-			displayPreview(file);
+			if (validateFileSize(file)) {
+				selectedFiles.push(file);
+				displayPreview(file);
+			}
 		});
 	}
 
@@ -1232,6 +1250,59 @@ function setupChat(data) {
 	}
 
 	$(document).ready(function () {
+
+		// Define the drop zone (your message input area)
+		const dropZone = $('.chat-panel');
+  
+		// Prevent default behaviors for drag events
+		['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+		  dropZone[0].addEventListener(eventName, preventDefaults, false);
+		});
+		
+		function preventDefaults(e) {
+		  e.preventDefault();
+		  e.stopPropagation();
+		}
+		
+		// Highlight drop zone when dragging over it
+		['dragenter', 'dragover'].forEach(eventName => {
+		  dropZone[0].addEventListener(eventName, highlight, false);
+		});
+		
+		['dragleave', 'drop'].forEach(eventName => {
+		  dropZone[0].addEventListener(eventName, unhighlight, false);
+		});
+		
+		function highlight() {
+		  dropZone.addClass('drag-highlight');
+		}
+		
+		function unhighlight() {
+		  dropZone.removeClass('drag-highlight');
+		}
+		
+		// Handle dropped files
+		dropZone[0].addEventListener('drop', handleDrop, false);
+		
+		function handleDrop(e) {
+		  const dt = e.dataTransfer;
+		  const files = dt.files;
+		  
+		  if (files.length > 0) {
+			addFiles(files);
+		  }
+		}
+		
+		// Add this CSS to your stylesheet
+		$('<style>')
+		  .text(`
+			.drag-highlight {
+			  border: 2px dashed #007bff;
+			  background-color: rgba(0, 123, 255, 0.1);
+			}
+		  `)
+			.appendTo('head');
+		
 		// Open file manager when clicking icons
 		$('#fileIcon').click(() => $('#fileInput').click());
 		$('#imageIcon').click(() => $('#imageInput').click());

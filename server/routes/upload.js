@@ -32,10 +32,31 @@ const storage = multer.diskStorage({
 	},
 });
 
-const upload = multer({ storage });
+const upload = multer({
+	storage,
+	limits: {
+		fileSize: 10 * 1024 * 1024,
+	},
+	fileFilter: (req, file, cb) => {
+		cb(null, true);
+	}
+});
 
 // Route for multiple file uploads
 router.post('/upload', upload.array('files', 10), (req, res) => {
+
+	if (err instanceof multer.MulterError) {
+		// A Multer error occurred
+		if (err.code === 'LIMIT_FILE_SIZE') {
+		  return res.status(400).json({ 
+			error: 'File size limit exceeded. Maximum file size is 10MB.' 
+		  });
+		}
+		return res.status(400).json({ error: err.message });
+	  } else if (err) {
+		return res.status(500).json({ error: 'Server error during upload' });
+	}
+	
 	const { senderID, receiverID, message, chatType, groupID } = req.body;
 	// Allows up to 10 files
 	if (!req.files || req.files.length === 0) {
