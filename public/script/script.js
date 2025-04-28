@@ -202,6 +202,24 @@ document.addEventListener('DOMContentLoaded', async () => {
 		}
 		const data = await response.json();
 
+		// Set up initial lazy loading
+		initLazyLoading();
+    
+		// Set up scroll events for chat list
+		const chatlist = document.getElementById('recentchats');
+		if (chatlist) {
+			chatlist.addEventListener('scroll', function() {
+				initLazyLoading();
+			});
+		}
+		
+		// Set up scroll events for messages
+		if (messages) {
+			messages.addEventListener('scroll', function() {
+				initLazyLoading();
+			});
+		}
+
 		setupChat(data.user);
 	} catch (err) {
 		console.log('Something went wrong: ', err);
@@ -281,7 +299,6 @@ function setupChat(data) {
 	socket.on('messageStatus', handleMessageStatus);
 
 	function handleMessageStatus({ messageID, status, userID, username, seenByOthers }) {
-		//console.log(`${messageID} ${status}`);
 		// Find the message element by messageID
 		const messageElement = document.querySelector(`[data-message-id="${messageID}"]`);
 		if (!messageElement) return;
@@ -310,14 +327,14 @@ function setupChat(data) {
 		if (status === 'sent') {
 			statusIndicator.innerHTML = '<i class="fas fa-check"></i>';
 			statusIndicator.title = 'Sent';
-			//console.log('here');
+			console.log('here');
 		} else if (status === 'delivered') {
 			statusIndicator.innerHTML = '<i class="fas fa-check-double"></i>';
 			statusIndicator.title = 'Delivered';
 			console.log('hair');
 		} else if (status === 'seen') {
 			statusIndicator.innerHTML = '<i class="fas fa-check-double seen-icon"></i>';
-
+			console.log('hair1111');
 			// For group chats, show who has seen the message
 			if (currentChatGroupID) {
 				const currentTitle = statusIndicator.title || '';
@@ -508,48 +525,37 @@ function setupChat(data) {
 			.catch((err) => console.error('Upload error:', err));
 	}
 
-	function displayMessage(msg) {
-		//console.log(msg.message);
-		//console.log(`msg${msg.fileUrl}`);
-		//console.log(`fileURL: ${msg.fileUrl} messageType: ${msg.messageType}`);
-		//console.log(`status  ${msg.status} messageID ${msg.messageID}`);
+	function createMessageElement(msg) {
 		const messageWrapper = document.createElement('div');
 		messageWrapper.classList.add('message-wrapper');
-
+	
 		const isNewSender = lastSenderId !== msg.senderID;
-
+	
 		if (isNewSender) {
 			const nameElement = document.createElement('p');
 			nameElement.textContent = msg.senderID === userId ? 'You' : msg.username;
 			nameElement.classList.add('message-name');
 			messageWrapper.appendChild(nameElement);
 		}
-
+	
 		const messageElement = document.createElement('div');
-		messageElement.textContent = msg.message;
 		messageElement.classList.add('message-box');
-
-		// Check if the message was sent by the current user
+	
 		if (msg.senderID === userId) {
-			messageWrapper.classList.add('my-message'); // Align right
+			messageWrapper.classList.add('my-message');
 		} else {
-			messageWrapper.classList.add('other-message'); // Align left
+			messageWrapper.classList.add('other-message');
 		}
-
-		// Create a separate container for the status indicator
+	
 		const statusContainer = document.createElement('div');
 		statusContainer.classList.add('message-status-container');
-
-		// Create the status indicator
+	
 		const statusIndicator = document.createElement('span');
 		statusIndicator.classList.add('message-status');
-
-		//console.log(`${msg.fileUrl} 222`);
+	
 		if (msg.messageType === 'image' && msg.fileUrl) {
 			try {
 				const fileUrls = JSON.parse(msg.fileUrl);
-				//console.log(`parse ${fileUrls}`);
-				//console.log(fileUrls);
 				fileUrls.forEach((file) => {
 
 					const imgContainer = document.createElement('div');
@@ -584,7 +590,7 @@ function setupChat(data) {
 					imgElement.style.transition = 'opacity 0.5s ease'; // Smooth fade-in
 
 					imgElement.addEventListener('click', function () {
-						openImageModal(this.src);
+						openImageModal(this.dataset.src || this.src);
 					});
 
 					//console.log(file.url);
@@ -605,20 +611,20 @@ function setupChat(data) {
 					const iconspan = document.createElement('span');
 					iconspan.classList.add('file-icon');
 					iconspan.innerHTML = '<i class="fas fa-file-alt"></i>';
-
+	
 					const fileLink = document.createElement('a');
 					fileLink.append(iconspan);
-					fileLink.href = `http://localhost/chat-app/server${file.url}`; // Correct URL format
+					fileLink.classList.add('file-link', 'lazy-file');
+					fileLink.dataset.href = `http://localhost/chat-app/server${file.url}`;
+					fileLink.href = '#';
 					fileLink.append(displayname);
 					fileLink.target = '_blank';
-					fileLink.classList.add('file-link');
 
 					if (msg.senderID === userId) {
-						fileLink.classList.add('my-file-link'); //Check if the same user send a file
+						fileLink.classList.add('my-file-link');
 					} else {
-						fileLink.classList.add('other-file-link'); //Check if other user send the file
+						fileLink.classList.add('other-file-link');
 					}
-
 					fileLink.setAttribute('download', displayname.trim());
 					messageElement.appendChild(fileLink);
 				});
@@ -628,47 +634,37 @@ function setupChat(data) {
 		} else if (msg.messageType === 'text' && msg.message) {
 			messageElement.textContent = msg.message;
 		}
-
+	
 		if (msg.messageID) {
 			messageWrapper.setAttribute('data-message-id', msg.messageID);
 		}
-
-		// Add the reaction button
+	
 		const reactionButton = document.createElement('button');
 		reactionButton.classList.add('reaction-button');
 		reactionButton.innerHTML = '<i class="far fa-smile"></i>';
 		reactionButton.title = "Add reaction";
-		// Event listener for the reaction button
 		reactionButton.addEventListener('click', function(e) {
 			e.preventDefault();
 			e.stopPropagation();
-				
+	
 			currentReactionTarget = this;
-
-			console.log("Works here", emojiPicker);
-				
-			// Show the emoji picker
+	
 			if (emojiPicker) {
-				console.log("Works here", emojiPicker);
 				emojiPicker.togglePicker(reactionButton);
 			}
 		});
-
-		// Add reaction container (will contain all reactions)
+	
 		const reactionContainer = document.createElement('div');
 		reactionContainer.classList.add('reaction-container');
-		messageWrapper.setAttribute('data-reactions', '{}'); // Initialize empty reactions
-
+		messageWrapper.setAttribute('data-reactions', '{}');
+	
 		const messageContentWrapper = document.createElement('div');
 		messageContentWrapper.classList.add('message-content-wrapper');
-			
+	
 		if (msg.senderID === userId) {
-			statusIndicator.innerHTML = '<i class="fas fa-check"></i>'; // Initial "sent" status
+			statusIndicator.innerHTML = '<i class="fas fa-check"></i>';
 			statusIndicator.title = 'Sent';
-
-			messageContentWrapper.classList.add('sender-layout'); // Align right
-
-			// Append the status container to the message
+			messageContentWrapper.classList.add('sender-layout');
 			statusContainer.appendChild(statusIndicator);
 			messageContentWrapper.appendChild(reactionButton);
 			messageContentWrapper.appendChild(messageElement);
@@ -676,8 +672,7 @@ function setupChat(data) {
 			messageWrapper.appendChild(messageContentWrapper);
 			messageWrapper.appendChild(statusContainer);
 		} else {
-			messageContentWrapper.classList.add('receiver-layout'); // Align left
-			// For messages received, don't add status indicators
+			messageContentWrapper.classList.add('receiver-layout');
 			statusContainer.appendChild(statusIndicator);
 			messageContentWrapper.appendChild(messageElement);
 			messageContentWrapper.appendChild(reactionButton);
@@ -685,18 +680,32 @@ function setupChat(data) {
 			messageWrapper.appendChild(messageContentWrapper);
 			messageWrapper.appendChild(statusContainer);
 		}
-		messages.appendChild(messageWrapper);
-
+	
 		lastSenderId = msg.senderID;
 
-		// Fetch reactions for this message
+		console.log(msg.messageID, msg.status, msg.username);
+	
+		handleMessageStatus({
+			messageID: msg.messageID,
+			status: msg.status,
+			userID: msg.userID,
+			username: msg.username,
+			seenByOthers: msg.seenByUsers,
+		});
+	
 		if (msg.messageID) {
 			socket.emit('getMessageReactions', {
-			  messageID: msg.messageID,
-			  chatType: currentChatGroupID ? 'group' : 'private'
+				messageID: msg.messageID,
+				chatType: currentChatGroupID ? 'group' : 'private'
 			});
 		}
-		
+	
+		return messageWrapper; 
+	}
+
+	function displayMessage(msg) {
+		const messageElement = createMessageElement(msg);
+		messages.appendChild(messageElement);
 		messages.scrollTop = messages.scrollHeight;
 	}
 
@@ -978,6 +987,26 @@ function setupChat(data) {
 		loadMessages(chatType, false);
 	}
 
+	function scrollHandler() {
+		if (messages.scrollTop < 50 && !reachedBeginningOfChat && !isLoadingMoreMessages) {
+			// User scrolled to top, load more messages
+			isLoadingMoreMessages = true;
+			const currentCount = document.querySelectorAll('.message-wrapper').length;
+			const newOffset = currentCount; // Set new offset to current count
+			fetchChatHistory(
+				currentChatGroupID ? currentChatGroupID : currentChatUserID,
+				currentChatGroupID ? 'group' : 'private',
+				newOffset, // Use new offset
+				20 // Limit
+			);
+			setTimeout(() => {
+				isLoadingMoreMessages = false;
+			}, 1000); // Debounce the scroll loading
+		}
+	}
+
+	let isLoadingMoreMessages = false;
+
 	//console.log('It start to run this socket.emit');
 	socket.emit('recentChat', userId);
 
@@ -1120,8 +1149,10 @@ function setupChat(data) {
 
 	let lastSearchValue = ''; // Store the last search value
 
-	// Create a debounced search function
-	const performSearch = async (searchValue) => {
+	// Detect typing in the search bar
+	searchInput.addEventListener('input', async () => {
+		const searchValue = searchInput.value.trim();
+
 		if (searchValue === lastSearchValue) {
 			return; // Prevent duplicate search requests
 		}
@@ -1133,23 +1164,14 @@ function setupChat(data) {
 			searchResults.innerHTML = '';
 			searchResults.style.display = 'none';
 			recentChat.style.display = 'block'; // Show recent chats
-			return; 
+			return; // Exit function
 		}
-		
 		searchResults.style.display = 'block';
 		recentChat.style.display = 'none';
 
 		// Fetch search results and display them
 		const data = await fetchSearchResults(searchValue);
 		displaySearchResults(data);
-	};
-
-	const debouncedSearch = debounce((value) => performSearch(value), 300);
-
-	// Detect typing in the search bar
-	searchInput.addEventListener('input', async () => {
-		const searchValue = searchInput.value.trim();
-		debouncedSearch(searchValue);
 	});
 
 	function displaySearchResults(data) {
@@ -1411,16 +1433,6 @@ function setupChat(data) {
 		}
 		return true;
 	}
-
-	function debounce(func, delay) {
-		let timeoutId;
-		return function(...args) {
-		  clearTimeout(timeoutId);
-		  timeoutId = setTimeout(() => {
-			func.apply(this, args);
-		  }, delay);
-		};
-	  }
 	
 	//Jquery for previewing the images or files when user selects it
 	let selectedFiles = []; // Stores selected files or images
