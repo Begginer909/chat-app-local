@@ -27,7 +27,7 @@ router.post('/recent', (req, res) => {
 });
 
 router.post('/getMessages', (req, res) => {
-	const { userID, otherUserID, groupID, chatType } = req.body;
+	const { userID, otherUserID, groupID, chatType, limit, offset } = req.body;
 	let query;
 	let params;
 	if (chatType === 'private') {
@@ -52,9 +52,9 @@ router.post('/getMessages', (req, res) => {
             LEFT JOIN private_message_receipts pr ON pr.messageID = p.messageID 
                 AND ((p.senderID = ? AND p.receiverID = ?) OR (p.receiverID = ? AND p.receiverID = ?))
             WHERE (p.senderID = ? AND p.receiverID = ?) OR (p.senderID = ? AND p.receiverID = ?)
-            ORDER BY p.sentAt ASC`;
+            ORDER BY p.sentAt DESC LIMIT ? OFFSET ?`;
 
-		params = [userID, otherUserID, userID, otherUserID, userID, otherUserID, otherUserID, userID];
+		params = [userID, otherUserID, userID, otherUserID, userID, otherUserID, otherUserID, userID, limit, offset];
 	} else if (chatType === 'group') {
 		query = `
 		  SELECT 
@@ -84,9 +84,9 @@ router.post('/getMessages', (req, res) => {
 		  JOIN users u ON u.userID = m.senderID
 		  JOIN groups g ON g.groupID = m.groupID
 		  WHERE m.groupID = ?
-		  ORDER BY m.sentAt ASC`;
+		  ORDER BY m.sentAt DESC LIMIT ? OFFSET ?`;
 
-		params = [groupID];
+		params = [groupID, limit, offset];
 	}
 
 	db.query(query, params, (err, results) => {

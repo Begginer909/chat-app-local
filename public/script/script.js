@@ -10,10 +10,7 @@ let currentChatUserID = null;
 let chatType;
 
 //Lazy loading variables
-let isLoadingMoreMessages = false;
-let noMoreMessages = false;
-let messagesPage = 1;
-const messagesPerPage = 20;
+let reachedBeginningOfChat = false;
 
 // Add these variables at the top with your other variables
 let typingTimer;
@@ -131,6 +128,58 @@ function setupTypingIndicator() {
 	});
 }
 
+function initLazyLoading() {
+    // Fix the selector syntax by removing the space
+    const lazyImages = document.querySelectorAll('img.lazy-load');
+    const lazyFiles = document.querySelectorAll('a.lazy-file');
+    
+    console.log(`Found ${lazyImages.length} lazy images and ${lazyFiles.length} lazy files to load`);
+    
+    if ('IntersectionObserver' in window) {
+        // Create observer for images
+        const imageObserver = new IntersectionObserver((entries, observer) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    const img = entry.target;
+                    img.src = img.dataset.src;
+                    img.classList.remove('lazy-load');
+                    observer.unobserve(img);
+                    console.log(`Lazy loaded image: ${img.dataset.src}`);
+                }
+            });
+        });
+        
+        // Create observer for file links
+        const fileObserver = new IntersectionObserver((entries, observer) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    const link = entry.target;
+                    link.href = link.dataset.href;
+                    link.classList.remove('lazy-file');
+                    observer.unobserve(link);
+                    console.log(`Lazy loaded file link: ${link.dataset.href}`);
+                }
+            });
+        });
+        
+        // Apply observers
+        lazyImages.forEach(img => imageObserver.observe(img));
+        lazyFiles.forEach(file => fileObserver.observe(file));
+    } 
+    else {
+        // Fallback for browsers that don't support Intersection Observer
+        lazyImages.forEach(img => {
+            img.src = img.dataset.src;
+            img.classList.remove('lazy-load');
+        });
+        
+        lazyFiles.forEach(link => {
+            link.href = link.dataset.href;
+            link.classList.remove('lazy-file');
+        });
+    }
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
 	try {
 		const response = await fetch('http://localhost:3000/cookie/protected', {
@@ -142,6 +191,24 @@ document.addEventListener('DOMContentLoaded', async () => {
 			throw new Error('Failed to fetch user information');
 		}
 		const data = await response.json();
+
+		// Set up initial lazy loading
+		initLazyLoading();
+    
+		// Set up scroll events for chat list
+		const chatlist = document.getElementById('recentchats');
+		if (chatlist) {
+			chatlist.addEventListener('scroll', function() {
+				initLazyLoading();
+			});
+		}
+		
+		// Set up scroll events for messages
+		if (messages) {
+			messages.addEventListener('scroll', function() {
+				initLazyLoading();
+			});
+		}
 
 		setupChat(data.user);
 	} catch (err) {
@@ -448,58 +515,45 @@ function setupChat(data) {
 			.catch((err) => console.error('Upload error:', err));
 	}
 
-	function displayMessage(msg) {
-		//console.log(msg.message);
-		//console.log(`msg${msg.fileUrl}`);
-		//console.log(`fileURL: ${msg.fileUrl} messageType: ${msg.messageType}`);
-		//console.log(`status  ${msg.status} messageID ${msg.messageID}`);
+	function createMessageElement(msg) {
 		const messageWrapper = document.createElement('div');
 		messageWrapper.classList.add('message-wrapper');
-
+	
 		const isNewSender = lastSenderId !== msg.senderID;
-
+	
 		if (isNewSender) {
 			const nameElement = document.createElement('p');
 			nameElement.textContent = msg.senderID === userId ? 'You' : msg.username;
 			nameElement.classList.add('message-name');
 			messageWrapper.appendChild(nameElement);
 		}
-
+	
 		const messageElement = document.createElement('div');
-		messageElement.textContent = msg.message;
 		messageElement.classList.add('message-box');
-
-		// Check if the message was sent by the current user
+	
 		if (msg.senderID === userId) {
-			messageWrapper.classList.add('my-message'); // Align right
+			messageWrapper.classList.add('my-message');
 		} else {
-			messageWrapper.classList.add('other-message'); // Align left
+			messageWrapper.classList.add('other-message');
 		}
-
-		// Create a separate container for the status indicator
+	
 		const statusContainer = document.createElement('div');
 		statusContainer.classList.add('message-status-container');
-
-		// Create the status indicator
+	
 		const statusIndicator = document.createElement('span');
 		statusIndicator.classList.add('message-status');
-
-		//console.log(`${msg.fileUrl} 222`);
+	
 		if (msg.messageType === 'image' && msg.fileUrl) {
 			try {
 				const fileUrls = JSON.parse(msg.fileUrl);
-				//console.log(`parse ${fileUrls}`);
-				//console.log(fileUrls);
 				fileUrls.forEach((file) => {
-					//console.log(`url is: ${file.url}`);
 					const imgElement = document.createElement('img');
-					imgElement.src = `http://localhost/chat-app/server${file.url}`;
-					imgElement.classList.add('chat-image', 'img-fluid'); // Add Bootstrap class
-
+					imgElement.dataset.src = `http://localhost/chat-app/server${file.url}`;
+					imgElement.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'; // blank placeholder
+					imgElement.classList.add('chat-image', 'img-fluid', 'lazy-load');
 					imgElement.addEventListener('click', function () {
-						openImageModal(this.src);
+						openImageModal(this.dataset.src || this.src);
 					});
-
 					messageElement.appendChild(imgElement);
 				});
 			} catch (e) {
@@ -513,20 +567,20 @@ function setupChat(data) {
 					const iconspan = document.createElement('span');
 					iconspan.classList.add('file-icon');
 					iconspan.innerHTML = '<i class="fas fa-file-alt"></i>';
-
+	
 					const fileLink = document.createElement('a');
 					fileLink.append(iconspan);
-					fileLink.href = `http://localhost/chat-app/server${file.url}`; // Correct URL format
+					fileLink.classList.add('file-link', 'lazy-file');
+					fileLink.dataset.href = `http://localhost/chat-app/server${file.url}`;
+					fileLink.href = '#';
 					fileLink.append(displayname);
 					fileLink.target = '_blank';
-					fileLink.classList.add('file-link');
 
 					if (msg.senderID === userId) {
-						fileLink.classList.add('my-file-link'); //Check if the same user send a file
+						fileLink.classList.add('my-file-link');
 					} else {
-						fileLink.classList.add('other-file-link'); //Check if other user send the file
+						fileLink.classList.add('other-file-link');
 					}
-
 					fileLink.setAttribute('download', displayname.trim());
 					messageElement.appendChild(fileLink);
 				});
@@ -536,47 +590,38 @@ function setupChat(data) {
 		} else if (msg.messageType === 'text' && msg.message) {
 			messageElement.textContent = msg.message;
 		}
-
+	
 		if (msg.messageID) {
 			messageWrapper.setAttribute('data-message-id', msg.messageID);
 		}
-
-		// Add the reaction button
+	
 		const reactionButton = document.createElement('button');
 		reactionButton.classList.add('reaction-button');
 		reactionButton.innerHTML = '<i class="far fa-smile"></i>';
 		reactionButton.title = "Add reaction";
-		// Event listener for the reaction button
 		reactionButton.addEventListener('click', function(e) {
 			e.preventDefault();
 			e.stopPropagation();
-				
+	
 			currentReactionTarget = this;
-
-			console.log("Works here", emojiPicker);
-				
-			// Show the emoji picker
+	
 			if (emojiPicker) {
-				console.log("Works here", emojiPicker);
 				emojiPicker.togglePicker(reactionButton);
 			}
 		});
-
-		// Add reaction container (will contain all reactions)
+	
 		const reactionContainer = document.createElement('div');
 		reactionContainer.classList.add('reaction-container');
-		messageWrapper.setAttribute('data-reactions', '{}'); // Initialize empty reactions
-
+		messageWrapper.setAttribute('data-reactions', '{}');
+	
 		const messageContentWrapper = document.createElement('div');
 		messageContentWrapper.classList.add('message-content-wrapper');
-			
+	
 		if (msg.senderID === userId) {
-			statusIndicator.innerHTML = '<i class="fas fa-check"></i>'; // Initial "sent" status
+			statusIndicator.innerHTML = '<i class="fas fa-check"></i>';
 			statusIndicator.title = 'Sent';
-
-			messageContentWrapper.classList.add('sender-layout'); // Align right
-
-			// Append the status container to the message
+			messageContentWrapper.classList.add('sender-layout');
+	
 			statusContainer.appendChild(statusIndicator);
 			messageContentWrapper.appendChild(reactionButton);
 			messageContentWrapper.appendChild(messageElement);
@@ -584,8 +629,7 @@ function setupChat(data) {
 			messageWrapper.appendChild(messageContentWrapper);
 			messageWrapper.appendChild(statusContainer);
 		} else {
-			messageContentWrapper.classList.add('receiver-layout'); // Align left
-			// For messages received, don't add status indicators
+			messageContentWrapper.classList.add('receiver-layout');
 			statusContainer.appendChild(statusIndicator);
 			messageContentWrapper.appendChild(messageElement);
 			messageContentWrapper.appendChild(reactionButton);
@@ -593,18 +637,30 @@ function setupChat(data) {
 			messageWrapper.appendChild(messageContentWrapper);
 			messageWrapper.appendChild(statusContainer);
 		}
-		messages.appendChild(messageWrapper);
-
+	
 		lastSenderId = msg.senderID;
-
-		// Fetch reactions for this message
+	
+		handleMessageStatus({
+			messageID: msg.messageID,
+			status: msg.status,
+			userID: msg.userID,
+			username: msg.username,
+			seenByOthers: msg.seenByUsers,
+		});
+	
 		if (msg.messageID) {
 			socket.emit('getMessageReactions', {
-			  messageID: msg.messageID,
-			  chatType: currentChatGroupID ? 'group' : 'private'
+				messageID: msg.messageID,
+				chatType: currentChatGroupID ? 'group' : 'private'
 			});
 		}
-		
+	
+		return messageWrapper; 
+	}
+
+	function displayMessage(msg) {
+		const messageElement = createMessageElement(msg);
+		messages.appendChild(messageElement);
 		messages.scrollTop = messages.scrollHeight;
 	}
 
@@ -683,42 +739,69 @@ function setupChat(data) {
 		updateUserStatusIndicators();
 	}
 
-	function fetchChatHistory(otherUserID, chatType) {
-		if (currentChatUserID === otherUserID) return;
+	function fetchChatHistory(otherUserID, chatType,  offset = 0, limit = 20) {
+		if (currentChatUserID === otherUserID && offset === 0) return;
 
-		if (chatType === 'group') {
-			currentChatGroupID = otherUserID; // Set group ID
-			currentChatUserID = null; // Reset private chat ID
+		if (offset === 0) {
+			
+			reachedBeginningOfChat = false;
 
-			// Update group header after setting the current group
-			updateGroupHeader(currentChatGroupID);
-			console.log("Here works");
-		} else {
-			currentChatUserID = otherUserID; // Set private chat ID
-			currentChatGroupID = null; // Reset group chat ID
-			console.log(`Set currentChatUserID=${currentChatUserID}, cleared currentChatGroupID`);
-
-			updateHeaderStatus();
-
+			// Only reset UI when loading the first batch
+			if (chatType === 'group') {
+				currentChatGroupID = otherUserID;
+				currentChatUserID = null;
+				updateGroupHeader(currentChatGroupID);
+			} else {
+				currentChatUserID = otherUserID;
+				currentChatGroupID = null;
+				updateHeaderStatus();
+			}
+	
+			socket.emit('activateChat', {
+				userID: userId,
+				chatType,
+				groupID: chatType === 'group' ? otherUserID : null,
+				otherUserID: chatType === 'private' ? otherUserID : null,
+			});
+	
+			messages.innerHTML = '';
+			
+			// Reset typing indicator
+			const typingIndicator = document.getElementById('typingIndicator');
+			if (typingIndicator) {
+				typingIndicator.style.display = 'none';
+			}
+			typingUsers.clear();
+			
+			// Add scroll event listener for loading more messages
+			messages.addEventListener('scroll', function() {
+				if (messages.scrollTop === 0 && !reachedBeginningOfChat) {
+					// User scrolled to top, load more messages
+					const currentCount = document.querySelectorAll('.message-wrapper').length;
+					fetchChatHistory(
+						chatType === 'private' ? currentChatUserID : currentChatGroupID,
+						chatType,
+						currentCount,
+						20
+					);
+				}
+			});
 		}
 
-		socket.emit('activateChat', {
-			userID: userId,
-			chatType,
-			groupID: chatType === 'group' ? otherUserID : null,
-			otherUserID: chatType === 'private' ? otherUserID : null,
-		});
+		// Show loading indicator if loading more messages
+		if (offset > 0) {
+			console.log('offset', offset);
+			const existingIndicator = document.querySelector('.loading-messages');
+			if (!existingIndicator) {
+				const loadingIndicator = document.createElement('div');
+				loadingIndicator.id = 'loading-messages-indicator';
+				loadingIndicator.classList.add('loading-messages');
+				loadingIndicator.textContent = 'Loading more messages...';
+				messages.prepend(loadingIndicator);
 
-		//(`current: ${currentChatUserID}`);
-
-		messages.innerHTML = '';
-
-		// Reset typing indicator and tracking
-		const typingIndicator = document.getElementById('typingIndicator');
-		if (typingIndicator) {
-			typingIndicator.style.display = 'none';
+				console.log("Hello World");
+			}
 		}
-		typingUsers.clear();
 
 		//Data that needed to be sent in getMessages API to satisfy the condition
 		const payload = {
@@ -726,6 +809,8 @@ function setupChat(data) {
 			otherUserID: chatType === 'private' ? currentChatUserID : null,
 			groupID: chatType === 'group' ? currentChatGroupID : null,
 			chatType,
+			offset: offset,
+        	limit: limit
 		};
 
 		//Call the API using fetch with a method POST
@@ -737,35 +822,97 @@ function setupChat(data) {
 			body: JSON.stringify(payload),
 		})
 			.then((response) => response.json())
-			.then((messages) => {
-				//console.log('Fetched messages:', messages);
-				document.getElementById('messages').innerHTML = '';
-
-				//Keep track of last sender for grouping messages
-				lastSenderId = null;
-
-				messages.forEach((msg) => {
-					displayMessage(msg);
-					handleMessageStatus({
-						messageID: msg.messageID,
-						status: msg.status,
-						userID: msg.userID,
-						username: msg.username,
-						seenByOthers: msg.seenByUsers,
-					});
-
-					// If this is an unread message from someone else, mark it as seen
-					if (msg.senderID !== userId && msg.messageID && msg.messageID) {
-						socket.emit('seenMessage', {
+			.then((messagesData) => {
+				// Remove loading indicator if present
+				const loadingIndicator = document.querySelector('.loading-messages');
+				if (loadingIndicator) {
+					messages.removeChild(loadingIndicator);
+				}
+				
+				// Remember scroll position if loading more messages
+				const scrollPos = messages.scrollHeight - messages.scrollTop;
+				
+				// Keep track of last sender for grouping messages
+				if (offset === 0) {
+					lastSenderId = null;
+				}
+				
+				// If loading more messages, prepend them
+				// Otherwise, append them
+				if (offset > 0) {
+					// Create a document fragment to batch DOM updates
+					const fragment = document.createDocumentFragment();
+					messagesData.reverse().forEach((msg) => {
+						const messageWrapper = createMessageElement(msg);
+						fragment.prepend(messageWrapper);
+						
+						handleMessageStatus({
 							messageID: msg.messageID,
-							senderID: msg.senderID,
-							userID: userId,
-							username: fullname.textContent,
-							chatType: chatType,
-							groupID: chatType === 'group' ? currentChatGroupID : null,
+							status: msg.status,
+							userID: msg.userID,
+							username: msg.username,
+							seenByOthers: msg.seenByUsers,
 						});
+						
+						// Mark as seen if needed
+						if (msg.senderID !== userId && msg.messageID) {
+							socket.emit('seenMessage', {
+								messageID: msg.messageID,
+								senderID: msg.senderID,
+								userID: userId,
+								username: fullname.textContent,
+								chatType: chatType,
+								groupID: chatType === 'group' ? currentChatGroupID : null,
+							});
+						}
+					});
+					
+					messages.prepend(fragment);
+					
+					// Maintain scroll position
+					messages.scrollTop = messages.scrollHeight - scrollPos;
+					
+					// No more messages to load
+					if (messagesData.length < limit) {
+						reachedBeginningOfChat = true;
+						const existingEndMarker = document.querySelector('.end-of-messages');
+						if (!existingEndMarker) {
+							const endMarker = document.createElement('div');
+							endMarker.classList.add('end-of-messages');
+							endMarker.textContent = 'Beginning of conversation';
+							messages.prepend(endMarker);
+						}
 					}
-				});
+				} else {
+					// First load - append messages and scroll to bottom
+					messagesData.forEach((msg) => {
+						displayMessage(msg);
+						handleMessageStatus({
+							messageID: msg.messageID,
+							status: msg.status,
+							userID: msg.userID,
+							username: msg.username,
+							seenByOthers: msg.seenByUsers,
+						});
+						
+						// Mark as seen if needed
+						if (msg.senderID !== userId && msg.messageID) {
+							socket.emit('seenMessage', {
+								messageID: msg.messageID,
+								senderID: msg.senderID,
+								userID: userId,
+								username: fullname.textContent,
+								chatType: chatType,
+								groupID: chatType === 'group' ? currentChatGroupID : null,
+							});
+						}
+					});
+					
+					messages.scrollTop = messages.scrollHeight;
+				}
+				
+				// Initialize Intersection Observer for lazy loading images
+				initLazyLoading();
 			})
 			.catch((error) => {
 				console.error('Error fetching chat history:', error);
@@ -938,6 +1085,7 @@ function setupChat(data) {
 		displaySearchResults(data);
 	};
 
+	//Initializing the debounce function
 	const debouncedSearch = debounce((value) => performSearch(value), 300);
 
 	// Detect typing in the search bar
@@ -1206,6 +1354,7 @@ function setupChat(data) {
 		return true;
 	}
 
+	//Creating debounce function
 	function debounce(func, delay) {
 		let timeoutId;
 		return function(...args) {
