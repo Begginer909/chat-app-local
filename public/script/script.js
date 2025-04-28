@@ -363,50 +363,50 @@ function setupChat(data) {
 	socket.on('messageReactions', handleMessageReactions);
 
 	function handleReactionUpdate({ messageID, userID, username, emoji, chatType }) {
-	const messageElement = document.querySelector(`[data-message-id="${messageID}"]`);
-	if (!messageElement) return;
-	
-	// Get the reaction container
-	const reactionContainer = messageElement.querySelector('.reaction-container');
-	if (!reactionContainer) return;
-	
-	// Get current reactions from data attribute
-	let reactions = {};
-	try {
-		reactions = JSON.parse(messageElement.getAttribute('data-reactions') || '{}');
-	} catch (e) {
-		reactions = {};
-	}
-	
-	// Update reactions
-	if (!reactions[emoji]) {
-		reactions[emoji] = [];
-		console.log("Hello there");
-	}
-	
-	// Check if user already reacted with this emoji
-	const userIndex = reactions[emoji].findIndex(r => r.userID === userID);
-	if (userIndex === -1) {
-		reactions[emoji].push({ userID, username });
-		console.log("Hello there 2");
-	}
-	
-	// Remove user from all existing emoji reactions
-	for (const [em, users] of Object.entries(reactions)) {
-		reactions[em] = users.filter(r => r.userID !== userID);
+		const messageElement = document.querySelector(`[data-message-id="${messageID}"]`);
+		if (!messageElement) return;
+		
+		// Get the reaction container
+		const reactionContainer = messageElement.querySelector('.reaction-container');
+		if (!reactionContainer) return;
+		
+		// Get current reactions from data attribute
+		let reactions = {};
+		try {
+			reactions = JSON.parse(messageElement.getAttribute('data-reactions') || '{}');
+		} catch (e) {
+			reactions = {};
 		}
 		
-	// Add user to new emoji reaction
-	if (!reactions[emoji]) {
-		reactions[emoji] = [];
-	}
-	reactions[emoji].push({ userID, username });
+		// Update reactions
+		if (!reactions[emoji]) {
+			reactions[emoji] = [];
+			console.log("Hello there");
+		}
+		
+		// Check if user already reacted with this emoji
+		const userIndex = reactions[emoji].findIndex(r => r.userID === userID);
+		if (userIndex === -1) {
+			reactions[emoji].push({ userID, username });
+			console.log("Hello there 2");
+		}
+		
+		// Remove user from all existing emoji reactions
+		for (const [em, users] of Object.entries(reactions)) {
+			reactions[em] = users.filter(r => r.userID !== userID);
+			}
+			
+		// Add user to new emoji reaction
+		if (!reactions[emoji]) {
+			reactions[emoji] = [];
+		}
+		reactions[emoji].push({ userID, username });
 
-	// Update data attribute
-	messageElement.setAttribute('data-reactions', JSON.stringify(reactions));
-	
-	// Update the UI
-	updateReactionDisplay(reactionContainer, reactions);
+		// Update data attribute
+		messageElement.setAttribute('data-reactions', JSON.stringify(reactions));
+		
+		// Update the UI
+		updateReactionDisplay(reactionContainer, reactions);
 	}
 
 	setupEmojiPicker();
@@ -507,39 +507,43 @@ function setupChat(data) {
 			.catch((err) => console.error('Upload error:', err));
 	}
 
-	function createMessageElement(msg) {
+	function displayMessage(msg) {
 		const messageWrapper = document.createElement('div');
 		messageWrapper.classList.add('message-wrapper');
-	
+
 		const isNewSender = lastSenderId !== msg.senderID;
-	
+
 		if (isNewSender) {
 			const nameElement = document.createElement('p');
 			nameElement.textContent = msg.senderID === userId ? 'You' : msg.username;
 			nameElement.classList.add('message-name');
 			messageWrapper.appendChild(nameElement);
 		}
-	
+
 		const messageElement = document.createElement('div');
+		messageElement.textContent = msg.message;
 		messageElement.classList.add('message-box');
-	
+
+		// Check if the message was sent by the current user
 		if (msg.senderID === userId) {
-			messageWrapper.classList.add('my-message');
+			messageWrapper.classList.add('my-message'); // Align right
 		} else {
-			messageWrapper.classList.add('other-message');
+			messageWrapper.classList.add('other-message'); // Align left
 		}
-	
+
+		// Create a separate container for the status indicator
 		const statusContainer = document.createElement('div');
 		statusContainer.classList.add('message-status-container');
-	
+
+		// Create the status indicator
 		const statusIndicator = document.createElement('span');
 		statusIndicator.classList.add('message-status');
-	
+
+		//console.log(`${msg.fileUrl} 222`);
 		if (msg.messageType === 'image' && msg.fileUrl) {
 			try {
 				const fileUrls = JSON.parse(msg.fileUrl);
 				fileUrls.forEach((file) => {
-
 					const imgContainer = document.createElement('div');
 					imgContainer.classList.add('image-container');
 					
@@ -550,7 +554,7 @@ function setupChat(data) {
 					placeholder.style.width = '100%';
 					placeholder.style.paddingBottom = '75%'; // 4:3 aspect ratio placeholder
 					placeholder.style.position = 'relative';
-
+					
 					// Add loading spinner
 					const spinner = document.createElement('div');
 					spinner.classList.add('spinner-border', 'text-primary');
@@ -559,26 +563,27 @@ function setupChat(data) {
 					spinner.style.left = '50%';
 					spinner.style.transform = 'translate(-50%, -50%)';
 					placeholder.appendChild(spinner);
-
+					
 					imgContainer.appendChild(placeholder);
 					messageElement.appendChild(imgContainer);
-
-					//console.log(`url is: ${file.url}`);
+					
+					// Create the actual image element
 					const imgElement = document.createElement('img');
+					imgElement.classList.add('chat-image', 'img-fluid', 'lazy-image');
 					imgElement.dataset.src = `http://localhost/chat-app/server${file.url}`;
-					imgElement.classList.add('chat-image', 'img-fluid', 'lazy-image'); // Add Bootstrap class
-
-					imgElement.style.opacity = '0';
-					imgElement.style.transition = 'opacity 0.5s ease'; // Smooth fade-in
-
+					
+					// Hide the image initially
+					imgElement.style.opacity = 0;
+					
+					// Event listener for when clicked
 					imgElement.addEventListener('click', function () {
-						openImageModal(this.dataset.src || this.src);
+						openImageModal(this.src);
 					});
-
-					//console.log(file.url);
-
+					
+					// Add the hidden image to the container
 					imgContainer.appendChild(imgElement);
 
+					// Set up intersection observer for this image
 					setupImageLazyLoading(imgElement, placeholder, imgContainer);
 					
 				});
@@ -590,26 +595,29 @@ function setupChat(data) {
 				const fileUrls = JSON.parse(msg.fileUrl);
 				fileUrls.forEach((file) => {
 					const displayname = ` ${file.originalName}`;
+					const fileContainer = document.createElement('div');
+					fileContainer.classList.add('file-container');
+					
+					// Create lazy-loaded file link
 					const iconspan = document.createElement('span');
 					iconspan.classList.add('file-icon');
 					iconspan.innerHTML = '<i class="fas fa-file-alt"></i>';
-	
+		
 					const fileLink = document.createElement('a');
 					fileLink.append(iconspan);
-					fileLink.classList.add('file-link', 'lazy-file');
-					fileLink.dataset.href = `http://localhost/chat-app/server${file.url}`;
-					fileLink.href = '#';
+					fileLink.href = `http://localhost/chat-app/server${file.url}`;
 					fileLink.append(displayname);
 					fileLink.target = '_blank';
-
+					fileLink.classList.add('file-link');
+					
 					if (msg.senderID === userId) {
 						fileLink.classList.add('my-file-link');
 					} else {
 						fileLink.classList.add('other-file-link');
 					}
-					
+		
 					fileLink.setAttribute('download', displayname.trim());
-            
+					
 					// Add lazy loading behavior - only fetch the actual link when visible
 					fileLink.dataset.href = fileLink.href;
 					fileLink.removeAttribute('href'); // Remove the href temporarily
@@ -626,37 +634,47 @@ function setupChat(data) {
 		} else if (msg.messageType === 'text' && msg.message) {
 			messageElement.textContent = msg.message;
 		}
-	
+
 		if (msg.messageID) {
 			messageWrapper.setAttribute('data-message-id', msg.messageID);
 		}
-	
+
+		// Add the reaction button
 		const reactionButton = document.createElement('button');
 		reactionButton.classList.add('reaction-button');
 		reactionButton.innerHTML = '<i class="far fa-smile"></i>';
 		reactionButton.title = "Add reaction";
+		// Event listener for the reaction button
 		reactionButton.addEventListener('click', function(e) {
 			e.preventDefault();
 			e.stopPropagation();
-	
+				
 			currentReactionTarget = this;
-	
+
+			console.log("Works here", emojiPicker);
+				
+			// Show the emoji picker
 			if (emojiPicker) {
+				console.log("Works here", emojiPicker);
 				emojiPicker.togglePicker(reactionButton);
 			}
 		});
-	
+
+		// Add reaction container (will contain all reactions)
 		const reactionContainer = document.createElement('div');
 		reactionContainer.classList.add('reaction-container');
-		messageWrapper.setAttribute('data-reactions', '{}');
-	
+		messageWrapper.setAttribute('data-reactions', '{}'); // Initialize empty reactions
+
 		const messageContentWrapper = document.createElement('div');
 		messageContentWrapper.classList.add('message-content-wrapper');
-	
+			
 		if (msg.senderID === userId) {
-			statusIndicator.innerHTML = '<i class="fas fa-check"></i>';
+			statusIndicator.innerHTML = '<i class="fas fa-check"></i>'; // Initial "sent" status
 			statusIndicator.title = 'Sent';
-			messageContentWrapper.classList.add('sender-layout');
+
+			messageContentWrapper.classList.add('sender-layout'); // Align right
+
+			// Append the status container to the message
 			statusContainer.appendChild(statusIndicator);
 			messageContentWrapper.appendChild(reactionButton);
 			messageContentWrapper.appendChild(messageElement);
@@ -664,7 +682,8 @@ function setupChat(data) {
 			messageWrapper.appendChild(messageContentWrapper);
 			messageWrapper.appendChild(statusContainer);
 		} else {
-			messageContentWrapper.classList.add('receiver-layout');
+			messageContentWrapper.classList.add('receiver-layout'); // Align left
+			// For messages received, don't add status indicators
 			statusContainer.appendChild(statusIndicator);
 			messageContentWrapper.appendChild(messageElement);
 			messageContentWrapper.appendChild(reactionButton);
@@ -672,32 +691,18 @@ function setupChat(data) {
 			messageWrapper.appendChild(messageContentWrapper);
 			messageWrapper.appendChild(statusContainer);
 		}
-	
+		messages.appendChild(messageWrapper);
+
 		lastSenderId = msg.senderID;
 
-		console.log(msg.messageID, msg.status, msg.username);
-	
-		handleMessageStatus({
-			messageID: msg.messageID,
-			status: msg.status,
-			userID: msg.userID,
-			username: msg.username,
-			seenByOthers: msg.seenByUsers,
-		});
-	
+		// Fetch reactions for this message
 		if (msg.messageID) {
 			socket.emit('getMessageReactions', {
-				messageID: msg.messageID,
-				chatType: currentChatGroupID ? 'group' : 'private'
+			  messageID: msg.messageID,
+			  chatType: currentChatGroupID ? 'group' : 'private'
 			});
 		}
-	
-		return messageWrapper; 
-	}
-
-	function displayMessage(msg) {
-		const messageElement = createMessageElement(msg);
-		messages.appendChild(messageElement);
+		
 		messages.scrollTop = messages.scrollHeight;
 	}
 
