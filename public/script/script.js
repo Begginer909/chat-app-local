@@ -202,24 +202,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 		}
 		const data = await response.json();
 
-		// Set up initial lazy loading
-		initLazyLoading();
-    
-		// Set up scroll events for chat list
-		const chatlist = document.getElementById('recentchats');
-		if (chatlist) {
-			chatlist.addEventListener('scroll', function() {
-				initLazyLoading();
-			});
-		}
-		
-		// Set up scroll events for messages
-		if (messages) {
-			messages.addEventListener('scroll', function() {
-				initLazyLoading();
-			});
-		}
-
 		setupChat(data.user);
 	} catch (err) {
 		console.log('Something went wrong: ', err);
@@ -625,8 +607,18 @@ function setupChat(data) {
 					} else {
 						fileLink.classList.add('other-file-link');
 					}
+					
 					fileLink.setAttribute('download', displayname.trim());
-					messageElement.appendChild(fileLink);
+            
+					// Add lazy loading behavior - only fetch the actual link when visible
+					fileLink.dataset.href = fileLink.href;
+					fileLink.removeAttribute('href'); // Remove the href temporarily
+					
+					// Set up intersection observer for this file link
+					setupFileLazyLoading(fileLink);
+					
+					fileContainer.appendChild(fileLink);
+					messageElement.appendChild(fileContainer);
 				});
 			} catch (e) {
 				console.error('Invalid file URL format:', msg.fileUrl);
@@ -824,6 +816,7 @@ function setupChat(data) {
 		loadMessages(chatType);
 	}
 
+	
 	function loadMessages(chatType, scrollToBottom = true) {
 		if (isLoadingMoreMessages || !hasMoreMessages) return;
 		
@@ -845,8 +838,7 @@ function setupChat(data) {
 			groupID: chatType === 'group' ? currentChatGroupID : null,
 			chatType,
 			page: messagesPage,
-			limit: messagesPerPage,
-			direction: messagesPage > 1 ? 'older' : 'newer'
+			limit: messagesPerPage
 		};
 	
 		fetch(`http://localhost:3000/search/getMessages`, {
@@ -857,17 +849,19 @@ function setupChat(data) {
 			body: JSON.stringify(payload),
 		})
 		.then((response) => response.json())
-		.then((data) => {
+		.then((fetchedMessages) => {
 			// Remove loading indicator
 			const loadingElement = document.getElementById('message-loading');
 			if (loadingElement) loadingElement.remove();
 			
-			// Handle the new response format
-			const fetchedMessages = data.messages || data;
-			hasMoreMessages = data.pagination ? data.pagination.hasMore : fetchedMessages.length === messagesPerPage;
+			// Check if we have more messages to load
+			hasMoreMessages = fetchedMessages.length === messagesPerPage;
 			
 			// Keep track of scroll position before adding new content
 			const oldScrollHeight = messages.scrollHeight;
+			
+			// Save current first element to maintain scroll position
+			const firstElement = messages.firstChild;
 			
 			if (fetchedMessages.length === 0) {
 				hasMoreMessages = false;
@@ -959,10 +953,10 @@ function setupChat(data) {
 		.catch((error) => {
 			console.error('Error fetching chat history:', error);
 			const loadingElement = document.getElementById('message-loading');
-        if (loadingElement) {
-            loadingElement.innerHTML = 'Error loading messages. <button class="btn btn-sm btn-link" onclick="retryLoadMessages(\'' + chatType + '\')">Retry</button>';
-        }
-        isLoadingMoreMessages = false;
+			if (loadingElement) {
+				loadingElement.innerHTML = 'Error loading messages. <button class="btn btn-sm btn-link" onclick="retryLoadMessages(\'' + chatType + '\')">Retry</button>';
+			}
+			isLoadingMoreMessages = false;
 		});
 	}
 
@@ -987,23 +981,6 @@ function setupChat(data) {
 		loadMessages(chatType, false);
 	}
 
-	function scrollHandler() {
-		if (messages.scrollTop < 50 && !reachedBeginningOfChat && !isLoadingMoreMessages) {
-			// User scrolled to top, load more messages
-			isLoadingMoreMessages = true;
-			const currentCount = document.querySelectorAll('.message-wrapper').length;
-			const newOffset = currentCount; // Set new offset to current count
-			fetchChatHistory(
-				currentChatGroupID ? currentChatGroupID : currentChatUserID,
-				currentChatGroupID ? 'group' : 'private',
-				newOffset, // Use new offset
-				20 // Limit
-			);
-			setTimeout(() => {
-				isLoadingMoreMessages = false;
-			}, 1000); // Debounce the scroll loading
-		}
-	}
 
 	let isLoadingMoreMessages = false;
 
