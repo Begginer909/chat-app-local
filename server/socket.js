@@ -41,7 +41,7 @@ export function initializeSocket(io) {
 
 				groups.forEach((group) => {
 					socket.join(`group_${group.groupID}`);
-					console.log(`User ${userID} joined group_${group.groupID} room`);
+					//console.log(`User ${userID} joined group_${group.groupID} room`);
 				});
 			});
 
@@ -428,7 +428,7 @@ export function initializeSocket(io) {
 						// Notify sender that message was seen
 						const senderSocket = users.get(senderID);
 
-						console.log(`${senderID} and ${senderSocket}--222sss`);
+						//console.log(`${senderID} and ${senderSocket}--222sss`);
 
 						if (senderSocket) {
 							console.log(`${senderID} and ${senderSocket}`);
@@ -704,8 +704,6 @@ function updateGroupStatus(userID, status, io) {
 			return;
 		}
 
-		console.log('Works here');
-
 		groups.forEach((group) => {
 			const groupID = group.groupID;
 
@@ -729,7 +727,7 @@ function updateGroupStatus(userID, status, io) {
 					// Update the group status in our map
 					groupOnlineStatus.set(groupID, hasOnlineMembers);
 
-					console.log(`GroupOnlineStatus ${groupOnlineStatus.get(userID)} hasOnlineMembers ${hasOnlineMembers}`);
+					//console.log(`GroupOnlineStatus ${groupOnlineStatus.get(userID)} hasOnlineMembers ${hasOnlineMembers}`);
 					// Broadcast group status update
 					io.emit('groupStatusUpdate', {
 						groupID: groupID,
