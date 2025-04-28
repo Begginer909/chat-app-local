@@ -914,10 +914,8 @@ function setupChat(data) {
 
 	let lastSearchValue = ''; // Store the last search value
 
-	// Detect typing in the search bar
-	searchInput.addEventListener('input', async () => {
-		const searchValue = searchInput.value.trim();
-
+	// Create a debounced search function
+	const performSearch = async (searchValue) => {
 		if (searchValue === lastSearchValue) {
 			return; // Prevent duplicate search requests
 		}
@@ -929,14 +927,23 @@ function setupChat(data) {
 			searchResults.innerHTML = '';
 			searchResults.style.display = 'none';
 			recentChat.style.display = 'block'; // Show recent chats
-			return; // Exit function
+			return; 
 		}
+		
 		searchResults.style.display = 'block';
 		recentChat.style.display = 'none';
 
 		// Fetch search results and display them
 		const data = await fetchSearchResults(searchValue);
 		displaySearchResults(data);
+	};
+
+	const debouncedSearch = debounce((value) => performSearch(value), 300);
+
+	// Detect typing in the search bar
+	searchInput.addEventListener('input', async () => {
+		const searchValue = searchInput.value.trim();
+		debouncedSearch(searchValue);
 	});
 
 	function displaySearchResults(data) {
@@ -1198,6 +1205,16 @@ function setupChat(data) {
 		}
 		return true;
 	}
+
+	function debounce(func, delay) {
+		let timeoutId;
+		return function(...args) {
+		  clearTimeout(timeoutId);
+		  timeoutId = setTimeout(() => {
+			func.apply(this, args);
+		  }, delay);
+		};
+	  }
 	
 	//Jquery for previewing the images or files when user selects it
 	let selectedFiles = []; // Stores selected files or images
