@@ -27,7 +27,7 @@ router.post('/recent', (req, res) => {
 });
 
 router.post('/getMessages', (req, res) => {
-	const { userID, otherUserID, groupID, chatType } = req.body;
+	const { userID, otherUserID, groupID, chatType} = req.body;
 	let query;
 	let params;
 	if (chatType === 'private') {

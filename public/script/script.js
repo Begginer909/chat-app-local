@@ -10,10 +10,10 @@ let currentChatUserID = null;
 let chatType;
 
 //Lazy loading variables
-let isLoadingMoreMessages = false;
-let noMoreMessages = false;
 let messagesPage = 1;
 const messagesPerPage = 20;
+let isLoadingMoreMessages = false;
+let hasMoreMessages = true;
 
 // Add these variables at the top with your other variables
 let typingTimer;
@@ -131,6 +131,65 @@ function setupTypingIndicator() {
 	});
 }
 
+function setupImageLazyLoading(imgElement, placeholder, container) {
+	// Set up Intersection Observer
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            // If the image is in view
+            if (entry.isIntersecting) {
+                const image = entry.target;
+                // Load the image
+                image.src = image.dataset.src;
+                
+                // When the image loads, show it and remove the placeholder
+                image.onload = function() {
+                    image.style.opacity = '1';
+				if (placeholder) {
+					placeholder.style.display = 'none';
+				}
+                };
+                
+                // Stop observing the image
+                observer.unobserve(image);
+            }
+        });
+    }, {
+        // Options: trigger when at least 10% of the image is in view
+        threshold: 0.1,
+        rootMargin: '100px' // Load images 100px before they come into view
+    });
+    
+    // Start observing the image
+    observer.observe(imgElement);
+}
+
+function setupFileLazyLoading(fileLink) {
+    // Set up Intersection Observer
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            // If the file link is in view
+            if (entry.isIntersecting) {
+                const link = entry.target;
+                
+                // Set the actual href when in view
+                if (link.dataset.href) {
+                    link.href = link.dataset.href;
+                }
+                
+                // Stop observing the link
+                observer.unobserve(link);
+            }
+        });
+    }, {
+        // Options: trigger when at least 10% of the link is in view
+        threshold: 0.1,
+        rootMargin: '100px' // Load files 100px before they come into view
+    });
+    
+    // Start observing the file link
+    observer.observe(fileLink);
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
 	try {
 		const response = await fetch('http://localhost:3000/cookie/protected', {
@@ -154,7 +213,8 @@ function setupChat(data) {
 
 	fullname.textContent = `${data.username}`;
 
-	// Call this function in the setupChat function
+	// Call the scroll lister for setup
+	setupMessagesScrollListener();
 	// Add this line after socket event listeners are set up
 	setupTypingIndicator();
 
@@ -491,16 +551,48 @@ function setupChat(data) {
 				//console.log(`parse ${fileUrls}`);
 				//console.log(fileUrls);
 				fileUrls.forEach((file) => {
+
+					const imgContainer = document.createElement('div');
+					imgContainer.classList.add('image-container');
+					
+					// Create a placeholder with the same aspect ratio
+					const placeholder = document.createElement('div');
+					placeholder.classList.add('image-placeholder');
+					placeholder.style.backgroundColor = '#e9ecef';
+					placeholder.style.width = '100%';
+					placeholder.style.paddingBottom = '75%'; // 4:3 aspect ratio placeholder
+					placeholder.style.position = 'relative';
+
+					// Add loading spinner
+					const spinner = document.createElement('div');
+					spinner.classList.add('spinner-border', 'text-primary');
+					spinner.style.position = 'absolute';
+					spinner.style.top = '50%';
+					spinner.style.left = '50%';
+					spinner.style.transform = 'translate(-50%, -50%)';
+					placeholder.appendChild(spinner);
+
+					imgContainer.appendChild(placeholder);
+					messageElement.appendChild(imgContainer);
+
 					//console.log(`url is: ${file.url}`);
 					const imgElement = document.createElement('img');
-					imgElement.src = `http://localhost/chat-app/server${file.url}`;
-					imgElement.classList.add('chat-image', 'img-fluid'); // Add Bootstrap class
+					imgElement.dataset.src = `http://localhost/chat-app/server${file.url}`;
+					imgElement.classList.add('chat-image', 'img-fluid', 'lazy-image'); // Add Bootstrap class
+
+					imgElement.style.opacity = '0';
+					imgElement.style.transition = 'opacity 0.5s ease'; // Smooth fade-in
 
 					imgElement.addEventListener('click', function () {
 						openImageModal(this.src);
 					});
 
-					messageElement.appendChild(imgElement);
+					//console.log(file.url);
+
+					imgContainer.appendChild(imgElement);
+
+					setupImageLazyLoading(imgElement, placeholder, imgContainer);
+					
 				});
 			} catch (e) {
 				console.error('Invalid image URL format:', msg.fileUrl);
@@ -683,23 +775,34 @@ function setupChat(data) {
 		updateUserStatusIndicators();
 	}
 
-	function fetchChatHistory(otherUserID, chatType) {
-		if (currentChatUserID === otherUserID) return;
-
-		if (chatType === 'group') {
-			currentChatGroupID = otherUserID; // Set group ID
-			currentChatUserID = null; // Reset private chat ID
-
-			// Update group header after setting the current group
-			updateGroupHeader(currentChatGroupID);
-			console.log("Here works");
+	function fetchChatHistory(otherUserID, chatType, resetPagination = true) {
+		if (currentChatUserID === otherUserID && chatType === 'private' && !resetPagination) {
+			// Same private chat, don't reset if not requested
+		} else if (currentChatGroupID === otherUserID && chatType === 'group' && !resetPagination) {
+			// Same group chat, don't reset if not requested
 		} else {
-			currentChatUserID = otherUserID; // Set private chat ID
-			currentChatGroupID = null; // Reset group chat ID
-			console.log(`Set currentChatUserID=${currentChatUserID}, cleared currentChatGroupID`);
-
-			updateHeaderStatus();
-
+			// New chat, reset everything
+			if (chatType === 'group') {
+				currentChatGroupID = otherUserID;
+				currentChatUserID = null;
+				updateGroupHeader(currentChatGroupID);
+			} else {
+				currentChatUserID = otherUserID;
+				currentChatGroupID = null;
+				updateHeaderStatus();
+			}
+	
+			// Reset pagination and UI
+			messagesPage = 1;
+			hasMoreMessages = true;
+			messages.innerHTML = '';
+			
+			// Reset typing indicator and tracking
+			const typingIndicator = document.getElementById('typingIndicator');
+			if (typingIndicator) {
+				typingIndicator.style.display = 'none';
+			}
+			typingUsers.clear();
 		}
 
 		socket.emit('activateChat', {
@@ -708,27 +811,35 @@ function setupChat(data) {
 			groupID: chatType === 'group' ? otherUserID : null,
 			otherUserID: chatType === 'private' ? otherUserID : null,
 		});
+	
+		loadMessages(chatType);
+	}
 
-		//(`current: ${currentChatUserID}`);
-
-		messages.innerHTML = '';
-
-		// Reset typing indicator and tracking
-		const typingIndicator = document.getElementById('typingIndicator');
-		if (typingIndicator) {
-			typingIndicator.style.display = 'none';
+	function loadMessages(chatType, scrollToBottom = true) {
+		if (isLoadingMoreMessages || !hasMoreMessages) return;
+		
+		isLoadingMoreMessages = true;
+		
+		// Show loading indicator at the top of messages
+		const loadingIndicator = document.createElement('div');
+		loadingIndicator.id = 'message-loading';
+		loadingIndicator.className = 'text-center p-2';
+		loadingIndicator.innerHTML = '<div class="spinner-border spinner-border-sm" role="status"><span class="visually-hidden">Loading...</span></div>';
+		
+		if (messagesPage > 1) {
+			messages.prepend(loadingIndicator);
 		}
-		typingUsers.clear();
-
-		//Data that needed to be sent in getMessages API to satisfy the condition
+	
 		const payload = {
 			userID: userId,
 			otherUserID: chatType === 'private' ? currentChatUserID : null,
 			groupID: chatType === 'group' ? currentChatGroupID : null,
 			chatType,
+			page: messagesPage,
+			limit: messagesPerPage,
+			direction: messagesPage > 1 ? 'older' : 'newer'
 		};
-
-		//Call the API using fetch with a method POST
+	
 		fetch(`http://localhost:3000/search/getMessages`, {
 			method: 'POST',
 			headers: {
@@ -736,40 +847,135 @@ function setupChat(data) {
 			},
 			body: JSON.stringify(payload),
 		})
-			.then((response) => response.json())
-			.then((messages) => {
-				//console.log('Fetched messages:', messages);
-				document.getElementById('messages').innerHTML = '';
-
-				//Keep track of last sender for grouping messages
+		.then((response) => response.json())
+		.then((data) => {
+			// Remove loading indicator
+			const loadingElement = document.getElementById('message-loading');
+			if (loadingElement) loadingElement.remove();
+			
+			// Handle the new response format
+			const fetchedMessages = data.messages || data;
+			hasMoreMessages = data.pagination ? data.pagination.hasMore : fetchedMessages.length === messagesPerPage;
+			
+			// Keep track of scroll position before adding new content
+			const oldScrollHeight = messages.scrollHeight;
+			
+			if (fetchedMessages.length === 0) {
+				hasMoreMessages = false;
+				isLoadingMoreMessages = false;
+				return;
+			}
+	
+			// Keep track of last sender for grouping messages
+			if (messagesPage === 1) {
 				lastSenderId = null;
-
-				messages.forEach((msg) => {
+			}
+	
+			// Store current scroll position
+			const scrollTop = messages.scrollTop;
+			
+			// Add messages to the DOM
+			fetchedMessages.forEach((msg) => {
+				if (messagesPage > 1) {
+					// If loading older messages, insert at the top
+					const tempDiv = document.createElement('div');
+					
+					// Store the current firstChild
+					const currentFirst = messages.firstChild;
+					
+					// Need to add to DOM temporarily to display the message properly
+					messages.prepend(tempDiv);
+					
+					// Keep track of original lastSenderId
+					const originalLastSenderId = lastSenderId;
+					
+					// Reset lastSenderId for proper grouping of prepended messages
+					lastSenderId = null;
+					
+					// Display the message in our temporary container
 					displayMessage(msg);
-					handleMessageStatus({
-						messageID: msg.messageID,
-						status: msg.status,
-						userID: msg.userID,
-						username: msg.username,
-						seenByOthers: msg.seenByUsers,
-					});
-
-					// If this is an unread message from someone else, mark it as seen
-					if (msg.senderID !== userId && msg.messageID && msg.messageID) {
-						socket.emit('seenMessage', {
-							messageID: msg.messageID,
-							senderID: msg.senderID,
-							userID: userId,
-							username: fullname.textContent,
-							chatType: chatType,
-							groupID: chatType === 'group' ? currentChatGroupID : null,
-						});
+					
+					// Move the displayed message to the top of the list
+					if (tempDiv.nextSibling) {
+						messages.insertBefore(tempDiv.nextSibling, currentFirst);
 					}
+					
+					// Remove the temporary container
+					tempDiv.remove();
+					
+					// Restore original lastSenderId
+					lastSenderId = originalLastSenderId;
+				} else {
+					// If initial load, just append as usual
+					displayMessage(msg);
+				}
+	
+				handleMessageStatus({
+					messageID: msg.messageID,
+					status: msg.status,
+					userID: msg.userID,
+					username: msg.username,
+					seenByOthers: msg.seenByUsers,
 				});
-			})
-			.catch((error) => {
-				console.error('Error fetching chat history:', error);
+	
+				// Mark message as seen if it's from someone else
+				if (msg.senderID !== userId && msg.messageID) {
+					socket.emit('seenMessage', {
+						messageID: msg.messageID,
+						senderID: msg.senderID,
+						userID: userId,
+						username: fullname.textContent,
+						chatType: chatType,
+						groupID: chatType === 'group' ? currentChatGroupID : null,
+					});
+				}
 			});
+	
+			// If loading older messages (page > 1), maintain scroll position
+			if (messagesPage > 1) {
+				// Calculate how much the content height has increased
+				const newScrollHeight = messages.scrollHeight;
+				const scrollHeightDiff = newScrollHeight - oldScrollHeight;
+				
+				// Adjust scroll position to maintain relative position
+				messages.scrollTop = scrollTop + scrollHeightDiff;
+			} else if (scrollToBottom) {
+				// If it's the first page, scroll to bottom
+				messages.scrollTop = messages.scrollHeight;
+			}
+	
+			messagesPage++;
+			isLoadingMoreMessages = false;
+		})
+		.catch((error) => {
+			console.error('Error fetching chat history:', error);
+			const loadingElement = document.getElementById('message-loading');
+        if (loadingElement) {
+            loadingElement.innerHTML = 'Error loading messages. <button class="btn btn-sm btn-link" onclick="retryLoadMessages(\'' + chatType + '\')">Retry</button>';
+        }
+        isLoadingMoreMessages = false;
+		});
+	}
+
+	// Add scroll event listener to the messages container for infinite scrolling
+	function setupMessagesScrollListener() {
+		const messagesContainer = document.getElementById('messages');
+		messagesContainer.addEventListener('scroll', function() {
+			// If we're near the top (100px) and not currently loading, load more messages
+			if (messagesContainer.scrollTop < 100 && !isLoadingMoreMessages && hasMoreMessages) {
+				const chatType = currentChatGroupID ? 'group' : 'private';
+				loadMessages(chatType, false);
+			}
+		});
+	}
+
+	// Helper function to retry loading messages if there was an error
+	function retryLoadMessages(chatType) {
+		const loadingElement = document.getElementById('message-loading');
+		if (loadingElement) {
+			loadingElement.innerHTML = '<div class="spinner-border spinner-border-sm" role="status"><span class="visually-hidden">Loading...</span></div>';
+		}
+		loadMessages(chatType, false);
 	}
 
 	//console.log('It start to run this socket.emit');
